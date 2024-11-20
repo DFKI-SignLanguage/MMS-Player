@@ -1,0 +1,17 @@
+# Python tmp stuff
+**/__pycache__/*
+*.py[cod]
+*$py.class
+
+# For your local virtual environment
+venv
+
+# For all of the automatically generated videos
+Examples-MMS/*.mp4
+
+# MacOS stuff
+.DS_Store
+
+# If you update the assets
+*.blend1
+*.blend2
