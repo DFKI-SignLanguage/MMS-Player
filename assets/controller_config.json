@@ -1,0 +1,105 @@
+{
+    "hands": {
+        "dom": {
+            "rot": {
+                "target": "LocalRotationTarget",
+                "dominance": "dom",
+                "bone": "Bone_R_Hand",
+                "root": "Bone_Spine2",
+                "itype": "hand",
+                "constraints": {
+                    "data": null
+                }
+            },
+            "loc": {
+                "target": "TrajectoryTarget",
+                "dominance": "dom",
+                "bone": "Bone_R_Hand",
+                "root": "Bone_Spine2",
+                "itype": "hand",
+                "constraints": {
+                    "use_rotation": false,
+                    "chain_count": 2,
+                    "use_tail": false
+                }
+            }
+        },
+        "ndom": {
+            "rot": {
+                "target": "LocalRotationTarget",
+                "dominance": "ndom",
+                "bone": "Bone_L_Hand",
+                "root": "Bone_Spine2",
+                "itype": "hand",
+                "constraints": {
+                    "data": null
+                }
+            },
+            "loc": {
+                "target": "TrajectoryTarget",
+                "dominance": "ndom",
+                "bone": "Bone_L_Hand",
+                "root": "Bone_Spine2",
+                "itype": "hand",
+                "constraints": {
+                    "use_rotation": false,
+                    "chain_count": 2,
+                    "use_tail": false
+                }
+            }
+        }
+    },
+
+    "shoulders": {
+        "dom": {
+            "target": "RelativeLocRotTarget",
+            "dominance": "dom",
+            "bone": "Bone_R_Clavicle",
+            "root": "Bone_Spine2",
+            "itype": "shoulder",
+            "constraints": {
+                "use_rotation": false,
+                "chain_count": 1,
+                "use_tail": true
+            }
+        },
+        "ndom": {
+            "target": "RelativeLocRotTarget",
+            "dominance": "ndom",
+            "bone": "Bone_L_Clavicle",
+            "root": "Bone_Spine2",
+            "itype": "shoulder",
+            "constraints": {
+                "use_rotation": false,
+                "chain_count": 1,
+                "use_tail": true
+            }
+        }
+    },
+
+    "torso": {
+        "target": "RelativeLocRotTarget",
+        "dominance": null,
+        "bone": "Bone_Spine2",
+        "root": "Bone_Pelvis",
+        "itype": "torso",
+        "constraints": {
+            "use_rotation": true,
+            "chain_count": 3,
+            "use_tail": true
+        }
+    },
+
+    "head": {
+        "target": "HeadRotTarget",
+        "dominance": null,
+        "bone": "Bone_Head",
+        "root": "Bone_Spine2",
+        "itype": "head",
+        "constraints": {
+            "use_rotation": true,
+            "chain_count": 2,
+            "use_tail": true
+        }
+    }
+}

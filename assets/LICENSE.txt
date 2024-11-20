@@ -1,0 +1,20 @@
+# Assets for the MMS Player
+
+The "Assets for the MMS Player" include two items
+
+## The Gloria character
+
+The file `avasag_avatar_casual.glb` contains the original Gloria virtual character in GLB format
+
+The "Gloria character" by "Charamel GmbH" (https://www.charamel.com) is licensed under CC BY-NC-SA.
+CREATIVE COMMONS ATTRIBUTION-NONCOMMERCIAL-SHAREALIKE 4.0 INTERNATIONAL
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+
+## The default Blender scene
+
+The file `defaults.blend` is the base Blender scene containing the imported Gloria character, default light setup, and some default render options.
+
+The "default Blender scene" by "DFKI GmbH" (https://www.dfki.de) are is licensed under CC BY-NC-SA.
+CREATIVE COMMONS ATTRIBUTION-NONCOMMERCIAL-SHAREALIKE 4.0 INTERNATIONAL
+https://creativecommons.org/licenses/by-nc-sa/4.0/
