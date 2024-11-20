@@ -1,0 +1,4 @@
+maingloss,framestart,frameend,duration,transition,domgloss,ndomgloss,torsorelocx,torsorelocy,torsorelocz,torsorelocax,torsorelocay,torsorelocaz,domhandrelocx,domhandrelocy,domhandrelocz,domhandrelocax,domhandrelocay,domhandrelocaz,domhandrelocsx,domhandrelocsy,domhandrelocsz,ndomhandrelocx,ndomhandrelocy,ndomhandrelocz,ndomhandrelocax,ndomhandrelocay,ndomhandrelocaz,ndomhandrelocsx,ndomhandrelocsy,ndomhandrelocsz,headrotx,headroty,headrotz
+NICHT,0,0,0.5,0.5,,,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0
+NICHT,0,0,0.5,0.5,,,-10,0,0,0,0,0.55,0,15,0,0,0,0,0.4,0.4,0.4,0,15,0,0,0,0,0.4,0.4,0.4,0,0,-0.55
+NICHT,0,0,0.5,0.5,,,5,0,0,0,0,-0.2,0,15,0,0,0,0,1.5,1.5,1.5,0,15,0,0,0,0,1.5,1.5,1.5,0,0,0.2

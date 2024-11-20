@@ -1,0 +1,4 @@
+maingloss,framestart,frameend,duration,transition,domgloss,ndomgloss,domhandrelocx,domhandrelocy,domhandrelocz,domhandrelocax,domhandrelocay,domhandrelocaz,domhandrelocsx,domhandrelocsy,domhandrelocsz,domhandrotx,domhandroty,domhandrotz,ndomhandrelocx,ndomhandrelocy,ndomhandrelocz,ndomhandrelocax,ndomhandrelocay,ndomhandrelocaz,ndomhandrelocsx,ndomhandrelocsy,ndomhandrelocsz,ndomhandrotx,ndomhandroty,ndomhandrotz
+NICHT,0,0,0.7,0.7,,,0,15,0,0,0,0,0.4,0.4,0.4,,,,0,15,0,0,0,0,0.4,0.4,0.4,,,
+NICHT,0,0,0.7,0.7,,,0,10,0,0,0,0,1,1,1,,,,0,10,0,0,0,0,1,1,1,,,
+NICHT,0,0,0.7,0.7,,,0,5,0,0,0,0,1.8,1.8,1.8,,,,0,5,0,0,0,0,1.8,1.8,1.8,,,

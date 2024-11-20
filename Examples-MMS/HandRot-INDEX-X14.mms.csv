@@ -1,0 +1,15 @@
+maingloss,framestart,frameend,duration,transition,domgloss,ndomgloss,domhandrelocx,domhandrelocy,domhandrelocz,domhandrelocax,domhandrelocay,domhandrelocaz,domhandrelocsx,domhandrelocsy,domhandrelocsz,domhandrotx,domhandroty,domhandrotz,ndomhandrelocx,ndomhandrelocy,ndomhandrelocz,ndomhandrelocax,ndomhandrelocay,ndomhandrelocaz,ndomhandrelocsx,ndomhandrelocsy,ndomhandrelocsz,ndomhandrotx,ndomhandroty,ndomhandrotz
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0,0,-0.785,0,0,0,0,0,0,1,1,1,0,0,0
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0,-0.785,0,0,0,0,0,0,0,1,1,1,0,0,-0.785
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,-0.785,0,0,0,0,0,0,0,0,1,1,1,0,0,0
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0,0,0.785,0,0,0,0,0,0,1,1,1,0,0,-0.785
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0,0.785,0,0,0,0,0,0,0,1,1,1,0,0,0
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0.785,0,0,0,0,0,0,0,0,1,1,1,0,0,-0.785
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0.785,1.14,0,0,0,0,0,0,0,1,1,1,0,0,-0.785
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,1.14,0.785,0,0,0,0,0,0,0,1,1,1,0,0,-0.785
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0,1.14,0.785,0,0,0,0,0,0,1,1,1,0,0,-0.785
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,-0.785
+INDEX,0,0,0.2,0.5,,,0,0,0,0,0,0,1,1,1,0.785,1.14,0.785,0,0,0,0,0,0,1,1,1,0,0,-0.785

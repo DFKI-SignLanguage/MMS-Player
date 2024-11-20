@@ -13,7 +13,7 @@ For more details on the implementation, please consult the [developers' docs](Do
 This software is distributed under the [GPL 3 license](https://www.gnu.org/licenses/gpl-3.0.html).
 
 
-## IMPORTANT DICLAIMER
+## IMPORTANT DISCLAIMER
 
 This software is a research prototype!
 
