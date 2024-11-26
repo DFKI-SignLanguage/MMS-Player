@@ -40,6 +40,14 @@ Universities and research centers are welcome to contact us for possible collabo
 
 If interested, please contact [Fabrizio Nunnari](https://github.com/fnunnari), or one of the other developers.
 
+## Documentation
+
+This files explains already how to install and use the MMS Player.
+
+Other documents:
+
+* The [MMS format](Docs/MMS.md) description: the input defining the glosses, their timing, and their inflections.
+* The [Developer's docs](Docs/DEVELOPERS.md), for people interested in contributing to the code.
 
 ## Prerequisites
 
@@ -216,6 +224,10 @@ series = {PETRA '22}
   * Shailesh's thesis [Web pages presentation](https://shailesh-mishra.com/thesis/index.html)
   * Shailesh's thesis [video presentation](https://www.youtube.com/watch?v=20dmUm5x5O0)
 * **Fabrizio Nunnari** sketched the original concept of the MMS. He is debugging, mantaining, and testing the software and coordinating further research and developments.
+
+## Links
+
+For other activities on Sign Language, check the Web Page of the [SCAAI group](https://scaai.dfki.de) at DFKI.
 
 ## Funding
 
