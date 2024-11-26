@@ -42,12 +42,17 @@ If interested, please contact [Fabrizio Nunnari](https://github.com/fnunnari), o
 
 ## Documentation
 
-This files explains already how to install and use the MMS Player.
+In the following sections, this file explains already how to install and use the MMS Player.
 
 Other documents:
 
 * The [MMS format](Docs/MMS.md) description: the input defining the glosses, their timing, and their inflections.
 * The [Developer's docs](Docs/DEVELOPERS.md), for people interested in contributing to the code.
+
+The development of the MMS Player was part of Shailesh Mishra's master thesis at the German Research Center for Artificial Intelligence (DFKI).
+
+  * Shailesh's thesis [Web pages presentation](https://shailesh-mishra.com/thesis/index.html)
+  * Shailesh's thesis [video presentation](https://www.youtube.com/watch?v=20dmUm5x5O0)
 
 ## Prerequisites
 
@@ -220,9 +225,7 @@ series = {PETRA '22}
 
 ## Authors
 
-* **Shailesh Mishra** was the first and main author of the MMS Player. The work was part of his master thesis at the German Research Center for Artificial Intelligence.
-  * Shailesh's thesis [Web pages presentation](https://shailesh-mishra.com/thesis/index.html)
-  * Shailesh's thesis [video presentation](https://www.youtube.com/watch?v=20dmUm5x5O0)
+* **Shailesh Mishra** was the first and main author of the MMS Player.
 * **Fabrizio Nunnari** sketched the original concept of the MMS. He is debugging, mantaining, and testing the software and coordinating further research and developments.
 
 ## Links
