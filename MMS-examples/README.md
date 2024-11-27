@@ -15,7 +15,7 @@ There is a `GenerateExampleVideos.mk` makefile allowing the automate the generat
 cd ..
 export BLENDER_EXE=/path/to/blender/binary/
 export AVASAG_CORPUS_DIR=/path/to/animation/dictionaty/
-make -f Examples-MMS/GenerateExampleVideos.mk
+make -f MMS-examples/GenerateExampleVideos.mk
 ```
 
 For each *.mms.csv file, a corresponding *.mp4 is created.

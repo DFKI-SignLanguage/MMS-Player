@@ -1,8 +1,0 @@
-maingloss,framestart,frameend,duration,transition,domgloss,ndomgloss
-gest:PAUSENPOSITION,0,0,100%,0.2,,
-fa:a,0,0,100%,0.5,,
-fa:b,0,0,100%,0.5,,
-fa:c,0,0,100%,0.5,,
-<HOLD>,0,0,1.0,0.1,,
-INDEX,0,0,100%,0.5,,
-gest:PAUSENPOSITION,0,0,100%,0.2,,

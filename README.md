@@ -5,7 +5,7 @@ MMS stands for "Multimodal SignStream", and it is a machine-and-human-readable f
 
 This code, the MMS Player, is able to read an MMS file and produce a SL animation in different formats (MP4, FBX, JSON animation data, blender scene).
 
-For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md) and set of examples [MMS examples](Examples-MMS/README.md).
+For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md) and set of examples [MMS examples](MMS-examples/README.md).
 
 The implementation is based on the Python language, and it is meant to be executed through the [Blender 3D editor](http://www.blender.org).
 For more details on the implementation, please consult the [developers' docs](Docs/DEVELOPERS.md).
@@ -98,7 +98,7 @@ Now you should be ready to go!
 To generate your first animation, execute the main file through the Blender embedded Python interpreter. E.g.:
 
 ```bash
-$BLENDER_EXE --background --python main.py -- --source-mms-file Examples-MMS/HandReloc-INDEX-X9.mms.csv \
+$BLENDER_EXE --background --python main.py -- --source-mms-file MMS-examples/HandReloc-INDEX-X9.mms.csv \
   --corpus-generated-directory $AVASAG_CORPUS_DIR/generated/ \
   --use-relative-time \
   --export-mp4 HandReloc-INDEX-X9.mp4
@@ -113,7 +113,7 @@ An MP4 video file is generated with the several inflected versions of the INDEX 
 If you want to keep Blender open and watch through the animation of the sign on the timeline, remove the `--background` and `--export-mp4` options and use:
 
 ```bash
-$BLENDER_EXE --python main.py -- --source-mms-file Examples-MMS/HandReloc-INDEX-X9.mms.csv \
+$BLENDER_EXE --python main.py -- --source-mms-file MMS-examples/HandReloc-INDEX-X9.mms.csv \
   --corpus-generated-directory $AVASAG_CORPUS_DIR/generated/ \
   --use-relative-time
 ```
@@ -178,7 +178,7 @@ Parameters:
 
 Example:
 
-    curl --request POST  -F file=@Examples-MMS/HandReloc-INDEX-X9.mms.csv http://localhost:5000/api/mms/animation
+    curl --request POST  -F file=@MMS-examples/HandReloc-INDEX-X9.mms.csv http://localhost:5000/api/mms/animation
 
 
 ## References
