@@ -106,6 +106,33 @@ assets/                         - binary files needed for the final blender scen
   ignorelist.json               - list of bones that must be deleted after loading an armature
 ```
 
+## Frames and duration of animations
+
+Blender artists reason in terms of frames. In the MMS, time is means to be specified in seconds. This is also to decouple the MMS from technical aspects like the framerate used to record a sign or to generate a video.
+
+While coding the MMS-Player this might lead to a bit of confusion. Let's clarify some concepts.
+
+An animation, stored as BVH and loaded in Blender as an action, has a number of frames.
+We define fs and fe as the starting and ending frames.
+So, the number of frames `Nf = fe - fs + 1`.
+The sampling rate `FPS` (usually 60 fps), let us define the time interval between frames `dt = 1 / FPS`, expressed in seconds.
+
+The duration, in seconds, of an animation is thus `D = dt * (Nf - 1)`.
+This because the last frame marks only the end of the animation, but doesn't define a duration in time.
+
+Hence, when we want to multiply by a factor `k` the duration of an animation, we don't simply multiply the number of frames, but twe apply:
+
+    Nf_new = (fe - fs) * k + 1
+
+thus:
+
+    D_new = dt * (fe - fs) * k
+
+So, for example, with FPS=60 (dt = 0.01666), for an animation with fs=1 and fe=11 --> Nf = 11, D = 0.16666.
+When scaling by a factor 3.0, we have Nf_new = 31 and D_new = 1.55 sec.
+
+This reflects in the computation of the new durations when scaling animations duration is relative mode.
+
 ## Preparing the development environment
 
 Highly recommended to use Linux or MacOS.
