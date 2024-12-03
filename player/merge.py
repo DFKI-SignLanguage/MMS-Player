@@ -174,7 +174,7 @@ class Glue:
                 )
             target_fcurve.update()
 
-        end = int(action_end) + start
+        end = int(action_end) + start - 1
 
         logger.info(f"Last written frame: {end}")
 
@@ -215,23 +215,23 @@ class Glue:
 
         for gloss in self.mms.glosses:
 
-            # TODO -- this was actually teste before, and anyway not used here. Remove?
+            # TODO -- this was actually tested before, and anyway not used here. Remove?
             if not self.mms[gloss].path.exists():
                 print("TODO: This should be fixed in the future updates.")
                 continue
 
             if use_rel_time:
                 start = last_gloss_end + self.mms[gloss].transition()
-                duration, is_relative = self.mms[gloss].duration()
+                duration_or_prop, is_relative = self.mms[gloss].duration()
                 if is_relative:
                     # In this case the duration is a fraction
-                    assert 0 <= duration <= 1
+                    assert 0 <= duration_or_prop
                     # Compute the estimated duration according to the sampled
                     fs, fe = self.mms[gloss].original_frame_range
                     dur_orig = (fe - fs)
-                    duration = dur_orig * duration
+                    duration_or_prop = dur_orig * duration_or_prop
 
-                end = start + duration
+                end = start + duration_or_prop
             else:
                 start, end = self.mms[gloss].timing()
                 # We start filling our timeline from frame 1

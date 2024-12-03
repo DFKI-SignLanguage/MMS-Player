@@ -96,14 +96,14 @@ class ArmatureOperator:
             start, end = timing
             target_frame_count = end - start + 1
         else:
-            value, is_percent = timing
-            if is_percent:
+            duration_or_prop, is_proportion = timing
+            if is_proportion:
                 action = source_armature.animation_data.action
                 frame_start = int(action.frame_range[0])
                 frame_end = int(action.frame_range[1])
-                target_frame_count = math.ceil(value * (frame_end - frame_start + 1))
+                target_frame_count = math.ceil(duration_or_prop * (frame_end - frame_start) + 1)
             else:
-                target_frame_count = value
+                target_frame_count = duration_or_prop
 
         # 2. Iterate through the bones and create a new f-curve if it doesn't exist.
         extract.create_f_curves(source_armature=source_armature, sampled_action=sampled_action)

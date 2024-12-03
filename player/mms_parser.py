@@ -186,7 +186,8 @@ class MMSLine:
         duration = self["duration"]
         if "%" in duration:
             time = duration.strip("%")
-            return math.ceil(float(time) / 100), True
+            time_ratio = float(time) / 100.0
+            return time_ratio, True
         return math.ceil(float(duration) * 60), False
 
 
