@@ -5,7 +5,7 @@ MMS stands for "Multimodal SignStream", and it is a machine-and-human-readable f
 
 This code, the MMS Player, is able to read an MMS file and produce a SL animation in different formats (MP4, FBX, BVH, JSON animation data, blender scene).
 
-<img src="Docs/Pics/MMS-Player-Diagram.png" width="80%" />
+<img src="Docs/Pics/MMS-Player-Diagram.png" width="100%" />
 
 For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md) and set of examples [MMS examples](MMS-examples/README.md).
 
