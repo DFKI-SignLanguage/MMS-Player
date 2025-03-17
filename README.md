@@ -108,9 +108,11 @@ $BLENDER_EXE --background --python main.py -- --source-mms-file MMS-examples/Han
 
 An MP4 video file is generated with the several inflected versions of the INDEX sign.
 
-<img src="Docs/Pics/INDEX-handreloc-upleft.png" width="25%"/>
-<img src="Docs/Pics/INDEX-handreloc-orig.png" width="25%"/>
-<img src="Docs/Pics/INDEX-handreloc-downright.png" width="25%"/>
+<p>
+  <img src="Docs/Pics/INDEX-handreloc-upleft.png" width="25%"/>
+  <img src="Docs/Pics/INDEX-handreloc-orig.png" width="25%"/>
+  <img src="Docs/Pics/INDEX-handreloc-downright.png" width="25%"/>
+</p>
 
 If you want to keep Blender open and watch through the animation of the sign on the timeline, remove the `--background` and `--export-mp4` options and use:
 
