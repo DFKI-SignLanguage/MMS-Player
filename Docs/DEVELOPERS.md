@@ -46,14 +46,14 @@ The core of the inflection is performed by subclasses of the Target abstract cla
 
 **TODO** _Actually, "Inflector" would be a more appropriate name. Might change in the future._
 
-A Target subclass know how to inflect something by providing a concrete implementation of the `.infect()` method.
+A Target subclass know how to inflect something by providing a concrete implementation of the `.inflect()` method.
 We refer to concrete subclasses of Target as "inflection strategies", i.e., how to perform an inflection. A strategy is a generic way of inflecting, and can be reused for several body parts.
 
 At the moment, the Target hierarchy is as follows (see targets.py):
 
 ```
 Target(ABC)                 - The top level abstract interface
-  GenericTarget             - Abstract interface implemetation, adding fields for all useful data
+  GenericTarget             - Abstract interface implementation, adding fields for all useful data
     LocalRotationTarget     - The simplest of all inflection strategies, adding only a delta to the local relative rotation. Doesn't use IK controllers.
     RelativeLocRotTarget    - Applies a delta translation and rotation to an IK controller. The delta values are relative to a given root, which is also the root of IK chain.
     HeadRotTarget           - (Subject to change, would better be RelativeRotTarget) Applies a delta rotation to an IK controller. The delta value is relative to a given root, which is also the root of IK chain.
