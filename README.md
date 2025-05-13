@@ -10,7 +10,9 @@ This code, the MMS Player, is able to read an MMS file and produce a SL animatio
 For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md) and set of examples [MMS examples](MMS-examples/README.md).
 
 A video tutorial is available on YouTube.
-[![MMS-Player video tutorial](https://img.youtube.com/vi/MxiFsxXukZw/0.jpg)](https://www.youtube.com/embed/MxiFsxXukZw?si=O56qpwOAE6Rh5GKI "MMS-Player Video Tutorial")
+
+<a href="https://www.youtube.com/embed/MxiFsxXukZw?si=O56qpwOAE6Rh5GKI" target="_blank" style="display: inline-block;" alt="MMS-Player Video Tutorial on YouTube">
+<img src="https://img.youtube.com/vi/MxiFsxXukZw/0.jpg" style="width: 50px; height: auto; margin-left: 5px;"></a>
 
 
 The implementation is based on the Python language, and it is meant to be executed through the [Blender 3D editor](http://www.blender.org).
