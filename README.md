@@ -11,7 +11,7 @@ For more information and examples on the MMS, please refer to the included [MMS 
 
 A video tutorial is available on YouTube.
 
-<a href="https://www.youtube.com/watch?v=MxiFsxXukZw" target="_blank" style="display: inline-block;" alt="MMS-Player Video Tutorial on YouTube">
+<a href="https://www.youtube.com/watch?v=MxiFsxXukZw" target="_new" style="display: inline-block;" alt="MMS-Player Video Tutorial on YouTube">
 <img src="https://img.youtube.com/vi/MxiFsxXukZw/0.jpg" align=center style="width: 33%; height: auto; margin-left: 5px;"></a>
 
 
