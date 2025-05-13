@@ -11,7 +11,10 @@ For more information and examples on the MMS, please refer to the included [MMS 
 
 A video tutorial is available on YouTube.
 
+<div>
 <iframe width="560" height="315" src="https://www.youtube.com/embed/MxiFsxXukZw?si=O56qpwOAE6Rh5GKI" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+</div>div>
+
 
 The implementation is based on the Python language, and it is meant to be executed through the [Blender 3D editor](http://www.blender.org).
 For more details on the implementation, please consult the [developers' docs](Docs/DEVELOPERS.md).
