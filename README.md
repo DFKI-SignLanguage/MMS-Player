@@ -236,7 +236,7 @@ series = {PETRA '22}
 ## Authors
 
 * **Shailesh Mishra** was the first and main author of the MMS Player.
-* **Fabrizio Nunnari** sketched the original concept of the MMS. He is debugging, mantaining, and testing the software and coordinating further research and developments.
+* **Fabrizio Nunnari** sketched the original concept of the MMS. He is debugging, maintaining, and testing the software and coordinating further research and developments.
 
 ## Links
 
