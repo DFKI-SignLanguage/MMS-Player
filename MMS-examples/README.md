@@ -13,8 +13,8 @@ There is a `GenerateExampleVideos.mk` makefile allowing the automate the generat
 
 ```bash
 cd ..
-export BLENDER_EXE=/path/to/blender/binary/
-export AVASAG_CORPUS_DIR=/path/to/animation/dictionaty/
+export BLENDER_EXE=/path/to/blender/binary
+export AVASAG_CORPUS_DIR=/path/to/corpus/
 make -f MMS-examples/GenerateExampleVideos.mk
 ```
 
