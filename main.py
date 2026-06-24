@@ -35,6 +35,10 @@ from player import extract
 from typing import List, Optional
 
 
+# The Blender scene containing the character, the light setup, and some default rendering parameters
+DEFAULT_BLEND_SCENE = "./assets/gloria-260624.blend"
+
+
 def add_options(arg_parser: argparse.ArgumentParser):
     """Add command line options to the parser.
 
@@ -330,7 +334,7 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
         glue = Glue(
             mms=mms,
             ignore_bone_list="./assets/ignorelist.json",
-            src_blendfile="./assets/defaults.blend",
+            src_blendfile=DEFAULT_BLEND_SCENE,
             action_name="final_action"
         )
         render_sentence(sentence_id, generated_root, glue, arguments)
@@ -455,7 +459,7 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
     print("Merging inflected glosses into the final timeline...")
     glue = Glue(mms=mms,
                 ignore_bone_list="./assets/ignorelist.json",
-                src_blendfile="./assets/defaults.blend",
+                src_blendfile=DEFAULT_BLEND_SCENE,
                 action_name="final_action")
     # Since the animation data is essentially empty after initializing a new one,
     # it is necessary to create f-curves that match the source data.

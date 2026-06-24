@@ -100,9 +100,9 @@ In addition, there are binary requirements:
 
 ```
 assets/                         - binary files needed for the final blender scene
-  avasag_avatar_casual.glb      - is our target character
+  avasag_avatar_casual.glb      - is our target character, currently called Gloria.
   controller_config.json        - described what inflection strategy must be used for each target bone
-  defaults.blend                - default blender scene, containing an imported version of the GLB. It contains some default rendering values and lights, and the timeline will be filled by the MMS animation.
+  gloria-YYMMDD.blend           - default blender scene, containing an imported version of the GLB. It contains some default rendering values and lights. Its timeline will be filled by the MMS animation.
   ignorelist.json               - list of bones that must be deleted after loading an armature
 ```
 
