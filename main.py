@@ -35,8 +35,14 @@ from player import extract
 from typing import List, Optional
 
 
-# The Blender scene containing the character, the light setup, and some default rendering parameters
+# The template Blender scene containing the character, the light setup, and some default rendering parameters
 DEFAULT_BLEND_SCENE = "./assets/gloria-260624.blend"
+# In the template scene, the name of the armature object to be animated.
+TARGET_ARMATURE = "skeleton #5"
+# In the template scene, the name of the camera object used for rendering.
+RENDER_CAMERA_NAME = "Camera"
+# The name of the final action containing the composed sign sequence
+TARGET_ACTION_NAME = "final_action"
 
 
 def add_options(arg_parser: argparse.ArgumentParser):
@@ -223,7 +229,7 @@ def post_bake(
     view3d.spaces[0].region_3d.view_perspective = "CAMERA"
 
     # Setup the objects to be rendered
-    bpy.context.scene.camera = bpy.data.objects["Camera"]
+    bpy.context.scene.camera = bpy.data.objects[RENDER_CAMERA_NAME]
 
     # Cleanup the animation curves
     action = bpy.data.actions.get(action_name)
@@ -294,11 +300,11 @@ def render_sentence(sentence_id: str, generated_root: Path, glue: Glue, argument
     with bpy.data.libraries.load(str(animation_data)) as (data_from, data_to):
         data_to.actions = data_from.actions
     glue.create_new_fcurves(f"updated_{sentence_id}")
-    glue.combine_animation("final_action", f"updated_{sentence_id}", 1)
+    glue.append_action("final_action", f"updated_{sentence_id}", 1)
 
     post_bake(
-        armature_obj_name=glue.armature_obj_name,
-        action_name=glue.action_name,
+        armature_obj_name=glue.src_armature_obj_name,
+        action_name=glue.target_action_name,
         mp4_path=arguments.export_mp4,
         bvh_path=arguments.export_bvh,
         fbx_path=arguments.export_fbx,
@@ -313,9 +319,9 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
     """Execute the mms pipeline.
 
     What does this method do?
-    1. Read a mms file
-    2. Import the necessary gloss in the MMS file
-    3. Attach the IK controller
+    1. Read a mms file.
+    2. Import the necessary gloss in the MMS file.
+    3. Attach the necessary IK controllers.
     4. Run the animation production pipeline.
     """
     mms_file = arguments.source_mms_file
@@ -325,7 +331,7 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
     # Read the MMS from the given MMS file.
     mms = MMSParser(mms_file, generated_root).parse()
     # Compose the MoCap file names and check for their availability
-    mms.find_mocap_data_files()
+    mms.ensure_mocap_data_files()
 
     # During the comparison it is necessary for us to only compute the sentence.
     # Thus, the following block assures that we load the correct sentence animation
@@ -335,7 +341,8 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
             mms=mms,
             ignore_bone_list="./assets/ignorelist.json",
             src_blendfile=DEFAULT_BLEND_SCENE,
-            action_name="final_action"
+            src_armature_obj_name=TARGET_ARMATURE,
+            action_name=TARGET_ACTION_NAME
         )
         render_sentence(sentence_id, generated_root, glue, arguments)
         return  # Exit the function. Because we do not need to continue at all.
@@ -457,20 +464,39 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
 
     # Finally we merge individual signs to produce the final utterance of the full sentence.
     print("Merging inflected glosses into the final timeline...")
-    glue = Glue(mms=mms,
-                ignore_bone_list="./assets/ignorelist.json",
-                src_blendfile=DEFAULT_BLEND_SCENE,
-                action_name="final_action")
+    glue = Glue(
+        mms=mms,
+        ignore_bone_list="./assets/ignorelist.json",
+        src_blendfile=DEFAULT_BLEND_SCENE,
+        src_armature_obj_name=TARGET_ARMATURE,
+        action_name=TARGET_ACTION_NAME
+    )
+
+    # Checks
+    assert TARGET_ARMATURE in bpy.context.scene.objects
+    assert TARGET_ACTION_NAME in bpy.data.actions
+
+    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data is not None
+    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data.action is not None
+    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data.action.name == TARGET_ACTION_NAME
+
+
     # Since the animation data is essentially empty after initializing a new one,
     # it is necessary to create f-curves that match the source data.
     glue.create_new_fcurves()
+
+    # Checks
+    assert bpy.context.active_object.name == TARGET_ARMATURE
+    # Also the referenced Armature has the same name
+    assert bpy.context.active_object.data.name == TARGET_ARMATURE
+
     # Put all the inflected glosses/actions into a final timeline
     glue.merge_animation(use_rel_time=arguments.use_relative_time)
 
     # Finalize the scene and export as MP4, BVH, FBX, or binary blender scene
     post_bake(
-        armature_obj_name=glue.armature_obj_name,
-        action_name=glue.action_name,
+        armature_obj_name=glue.src_armature_obj_name,
+        action_name=glue.target_action_name,
         mp4_path=arguments.export_mp4,
         bvh_path=arguments.export_bvh,
         fbx_path=arguments.export_fbx,

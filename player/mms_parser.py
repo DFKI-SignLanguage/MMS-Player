@@ -219,11 +219,13 @@ class MMS:
     def __repr__(self):
         return f"MMS({self.glosses})"
 
-    def find_mocap_data_files(self) -> None:
-        """Save the path information for each gloss in the MMS table.
-
-        As we assign the gloss path, we verify that the path exists.
+    def ensure_mocap_data_files(self) -> None:
         """
+        For each GLOSS in the MMS, as we assign the gloss path, we verify that the path exists.
+        Also, saves the path for each gloss file in the MMS table.
+        If the required file doesn't exist, an Exception is thrown.
+        """
+        
         pattern = r'<(.*?)>'
         for num, gloss_id in enumerate(self.glosses):
             gloss = self[gloss_id]

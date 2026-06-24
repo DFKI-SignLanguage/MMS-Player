@@ -49,30 +49,32 @@ class Glue:
             mms: MMS,
             ignore_bone_list: str,
             src_blendfile: str,
+            src_armature_obj_name: str,
             action_name: str,
     ):
         """
-        :param mms: MMS table containing all relevant gloss information
+        :param mms: MMS table containing all relevant gloss information.
         :param src_blendfile: The scene that contains the character assets.
+        :param src_armature_obj_name: The name of the Armature object that we are going to animate.
         :param action_name: The name of new action to write the keyframes.
         """
 
-        self.armature_obj_name = "skeleton #5"
-        self.action_name = action_name
-        self._duplicate_armature = "final_armature"
         self.mms = mms
         # TODO -- this is unused! Forgotten or to be used in the future?
         self.ignore_list = load_json(ignore_bone_list)
+
         self.src_blendfile = src_blendfile
+        self.src_armature_obj_name = src_armature_obj_name
+
+        self.target_action_name = action_name
 
         self.initialize_scene()
         self.initialize_mesh()
 
     def initialize_scene(self):
-        """Blender scene initialization.
-
-        Copy the objects from original scene to the current context.
-        Link them into the current context to work on them.
+        """Initialize the current Blender context:
+        i) Copy all objects and worlds from the source blender scene to the current context.
+        ii) Link all objects into the current context to work on them.
         """
 
         # Select all objects and delete them.
@@ -90,21 +92,24 @@ class Glue:
 
     def initialize_mesh(self):
         """Replace the name in the original mesh and create a new action.
-
-        The original names are "Bone Pelvis". This name doesn't work for the
+        The original names in the template scene are "Bone Pelvis". This name doesn't work for the
         skeletal animations which are of format "Bone_Pelvis". Thus, we modify
         the name of bones in the original mesh itself as it is one time operation.
+
+        Then, creates the final target action and assign it as current action of the armature
         """
 
-        mesh_armature = bpy.data.objects[self.armature_obj_name]
-        assert isinstance(mesh_armature, bpy.types.Object)
-        assert mesh_armature.type == "ARMATURE"
-        for bone in mesh_armature.pose.bones:
+        target_armature_obj = bpy.data.objects[self.src_armature_obj_name]
+        assert isinstance(target_armature_obj, bpy.types.Object)
+        assert target_armature_obj.type == "ARMATURE"
+
+        for bone in target_armature_obj.pose.bones:
             bone.name = bone.name.replace(" ", "_")
             bone.rotation_mode = "ZXY"
-        mesh_armature.animation_data_create()
-        action_ref = bpy.data.actions.new(self.action_name)
-        mesh_armature.animation_data.action = action_ref
+
+        target_armature_obj.animation_data_create()
+        action_ref = bpy.data.actions.new(self.target_action_name)
+        target_armature_obj.animation_data.action = action_ref
 
     def perform_hold(self,
                      target_animation: str,
@@ -139,24 +144,26 @@ class Glue:
 
         return end
 
-    def combine_animation(self,
-                          target_animation: str,
-                          source_animation: str,
+    def append_action(self,
+                          target_action_name: str,
+                          source_action_name: str,
                           start: float) -> int:
-        """Combine the animations.
+        """Appends the data of a source action into a target action, starting from the given keyframe.
+        Returns the keyframe number of the last added frame (acccording to the size of the source action).
 
-        :param target_animation: The target animation action.
-        :param source_animation: The source animation action.
+        :param target_action_name: The target animation action.
+        :param source_action_name: The source animation action.
         :param start: The starting keyframe for the given animation action
         :param print_debug: Debug flag.
         """
-        source_action = bpy.data.actions[source_animation]
+
+        source_action = bpy.data.actions[source_action_name]
         action_start, action_end = source_action.frame_range
 
-        logger.info(f"Copying the keyframes from {source_animation} into {target_animation} at frame {start}")
+        logger.info(f"Copying the keyframes from {source_action_name} into {target_action_name} at frame {start}")
         logger.info(f"Source action range is {action_start}-{action_end}")
 
-        target_action = bpy.data.actions[target_animation]
+        target_action = bpy.data.actions[target_action_name]
 
         # Iterate over all the animation curves
         for source_fcurve in source_action.fcurves:
@@ -181,15 +188,13 @@ class Glue:
         return end
 
     def create_new_fcurves(self, action_name: Optional[str] = None):
-        """Create a new action with empty fcurves in the target armature.
+        """Create new empty fcurves in the action of the target armature.
          Copies the list of fcurves from the given action parameter.
          If the action name is not specified (default), the list of fcurves is taken from the first inflected gloss.
         """
 
-        armature_obj = bpy.data.objects[self.armature_obj_name]
+        armature_obj = bpy.data.objects[self.src_armature_obj_name]
         bpy_utils.select_object(armature_obj)
-        bpy.context.object.name = armature_obj.name
-        bpy.context.object.data.name = armature_obj.name
 
         # By default, use the action of the first gloss as reference
         if action_name is None:
@@ -226,7 +231,7 @@ class Glue:
                 if is_relative:
                     # In this case the duration is a fraction
                     assert 0 <= duration_or_prop
-                    # Compute the estimated duration according to the sampled
+                    # Compute the estimated duration according to the sign duration
                     fs, fe = self.mms[gloss].original_frame_range
                     dur_orig = (fe - fs)
                     duration_or_prop = dur_orig * duration_or_prop
@@ -246,16 +251,16 @@ class Glue:
                 prev_gloss_id = self.mms.glosses[prev_gloss_index]
                 # end = self.mms[gloss].duration()[0]
                 end_frame = self.perform_hold(
-                        target_animation=self.action_name,
+                        target_animation=self.target_action_name,
                         source_animation=f"inflected_{self.mms[prev_gloss_id].output_name}",
                         start=start,
                         end=end
                 )
             else:
                 # Combine the animation and get the new end_frame
-                end_frame = self.combine_animation(
-                    target_animation=self.action_name,
-                    source_animation=f"inflected_{self.mms[gloss].output_name}",
+                end_frame = self.append_action(
+                    target_action_name=self.target_action_name,
+                    source_action_name=f"inflected_{self.mms[gloss].output_name}",
                     start=start
                 )
 
