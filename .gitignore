@@ -5,6 +5,10 @@
 
 # For your local virtual environment
 venv
+.venv
+
+# To have local stuff outside git
+*.local.*
 
 # For all of the automatically generated videos
 MMS-Examples/*.mp4
