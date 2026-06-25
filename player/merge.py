@@ -47,7 +47,6 @@ class Glue:
     def __init__(
             self,
             mms: MMS,
-            ignore_bone_list: str,
             src_blendfile: str,
             src_armature_obj_name: str,
             action_name: str,
@@ -60,8 +59,6 @@ class Glue:
         """
 
         self.mms = mms
-        # TODO -- this is unused! Forgotten or to be used in the future?
-        self.ignore_list = load_json(ignore_bone_list)
 
         self.src_blendfile = src_blendfile
         self.src_armature_obj_name = src_armature_obj_name
@@ -69,7 +66,7 @@ class Glue:
         self.target_action_name = action_name
 
         self.initialize_scene()
-        self.initialize_mesh()
+        self.initialize_armature()
 
     def initialize_scene(self):
         """Initialize the current Blender context:
@@ -90,8 +87,8 @@ class Glue:
             bpy.context.scene.collection.objects.link(obj)
         bpy.context.scene.world = data_to.worlds[0]
 
-    def initialize_mesh(self):
-        """Replace the name in the original mesh and create a new action.
+    def initialize_armature(self):
+        """Replace the bone names in the rtemplate armature and create a new action.
         The original names in the template scene are "Bone Pelvis". This name doesn't work for the
         skeletal animations which are of format "Bone_Pelvis". Thus, we modify
         the name of bones in the original mesh itself as it is one time operation.
@@ -187,7 +184,7 @@ class Glue:
 
         return end
 
-    def create_new_fcurves(self, action_name: Optional[str] = None):
+    def create_new_fcurves(self, reference_action_name: Optional[str] = None):
         """Create new empty fcurves in the action of the target armature.
          Copies the list of fcurves from the given action parameter.
          If the action name is not specified (default), the list of fcurves is taken from the first inflected gloss.
@@ -197,21 +194,21 @@ class Glue:
         bpy_utils.select_object(armature_obj)
 
         # By default, use the action of the first gloss as reference
-        if action_name is None:
+        if reference_action_name is None:
             # Take one source action
             gloss = self.mms[self.mms.glosses[0]]
-            action_name = f"inflected_{gloss.output_name}"
+            reference_action_name = f"inflected_{gloss.output_name}"
 
-        action = bpy.data.actions[action_name]
-        assert len(action.fcurves) != 0, f"The action {action_name} has no animation data"
+        action = bpy.data.actions[reference_action_name]
+        assert len(action.fcurves) != 0, f"The action {reference_action_name} has no animation data"
 
         for source_fcurve in action.fcurves:
             armature_obj.animation_data.action.fcurves.new(
                 source_fcurve.data_path, index=source_fcurve.array_index
             )
 
-    def merge_animation(self, use_rel_time: bool = False):
-        """Generate the timing data for individual gloss and merge into final track.
+    def realize_mms(self, use_rel_time: bool = False):
+        """Generate the timing data for individual glosses and merge them into final track.
         """
 
         # `last_gloss_end` holds the last frame number of the previous gloss.

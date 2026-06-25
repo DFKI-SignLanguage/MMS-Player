@@ -43,6 +43,8 @@ TARGET_ARMATURE = "skeleton #5"
 RENDER_CAMERA_NAME = "Camera"
 # The name of the final action containing the composed sign sequence
 TARGET_ACTION_NAME = "final_action"
+# Path to the JSON file with the list of bones to ignore during animation procedures
+# BONES_IGNORE_LIST_PATH = "./assets/ignorelist.json"
 
 
 def add_options(arg_parser: argparse.ArgumentParser):
@@ -300,7 +302,7 @@ def render_sentence(sentence_id: str, generated_root: Path, glue: Glue, argument
     with bpy.data.libraries.load(str(animation_data)) as (data_from, data_to):
         data_to.actions = data_from.actions
     glue.create_new_fcurves(f"updated_{sentence_id}")
-    glue.append_action("final_action", f"updated_{sentence_id}", 1)
+    glue.append_action(target_action_name="final_action", source_action_name=f"updated_{sentence_id}", start=1)
 
     post_bake(
         armature_obj_name=glue.src_armature_obj_name,
@@ -339,7 +341,6 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
     if arguments.render_sentence:
         glue = Glue(
             mms=mms,
-            ignore_bone_list="./assets/ignorelist.json",
             src_blendfile=DEFAULT_BLEND_SCENE,
             src_armature_obj_name=TARGET_ARMATURE,
             action_name=TARGET_ACTION_NAME
@@ -462,11 +463,12 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
         )
         return
 
+
+
     # Finally we merge individual signs to produce the final utterance of the full sentence.
     print("Merging inflected glosses into the final timeline...")
     glue = Glue(
         mms=mms,
-        ignore_bone_list="./assets/ignorelist.json",
         src_blendfile=DEFAULT_BLEND_SCENE,
         src_armature_obj_name=TARGET_ARMATURE,
         action_name=TARGET_ACTION_NAME
@@ -491,7 +493,7 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
     assert bpy.context.active_object.data.name == TARGET_ARMATURE
 
     # Put all the inflected glosses/actions into a final timeline
-    glue.merge_animation(use_rel_time=arguments.use_relative_time)
+    glue.realize_mms(use_rel_time=arguments.use_relative_time)
 
     # Finalize the scene and export as MP4, BVH, FBX, or binary blender scene
     post_bake(

@@ -231,7 +231,7 @@ class MMS:
             gloss = self[gloss_id]
             matches = re.findall(pattern, gloss.name)
             if len(matches) > 0 and matches[0] == "HOLD":
-                # TODO -- Why the path is set to the path of the previous gloss? And if the HOLD is the first sign in the MMS?
+                # TODO -- Why for HOLD the path is set to the path of the previous gloss? And if the HOLD is the first sign in the MMS, it is OK to leave it empty?
                 self[gloss_id].path = self[self.glosses[num - 1]].path
                 self[gloss_id].datatype = "HOLD"
             else:
