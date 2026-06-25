@@ -301,7 +301,7 @@ def render_sentence(sentence_id: str, generated_root: Path, glue: Glue, argument
     )
     with bpy.data.libraries.load(str(animation_data)) as (data_from, data_to):
         data_to.actions = data_from.actions
-    glue.create_new_fcurves(f"updated_{sentence_id}")
+    glue.prepare_target_fcurves(f"updated_{sentence_id}")
     glue.append_action(target_action_name="final_action", source_action_name=f"updated_{sentence_id}", start=1)
 
     post_bake(
@@ -315,6 +315,51 @@ def render_sentence(sentence_id: str, generated_root: Path, glue: Glue, argument
         render_size_x=arguments.res_x,
         render_size_y=arguments.res_y,
     )
+
+def initialize_scene():
+    """Initialize the current Blender context:
+    i) Copy all objects and worlds from the source template blender scene to the current context.
+    ii) Link all objects into the current context to work on them.
+    """
+
+    # Select all objects and delete them.
+    # Will leave only the armature data and the actions.
+    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.object.delete()
+
+    # Load objects from the reference scene (nice character and lights)
+    with bpy.data.libraries.load(DEFAULT_BLEND_SCENE) as (data_from, data_to):
+        data_to.objects = data_from.objects
+        data_to.worlds = data_from.worlds
+    
+    # Link all objects to the scene, to make them visible
+    for obj in data_to.objects:
+        bpy.context.scene.collection.objects.link(obj)
+
+    # Set the current world to the first found in the loaded template
+    bpy.context.scene.world = data_to.worlds[0]
+
+
+def initialize_armature():
+    """Replace the bone names in the rtemplate armature and create a new action.
+    The original names in the template scene are "Bone Pelvis". This name doesn't work for the
+    skeletal animations which are of format "Bone_Pelvis". Thus, we modify
+    the name of bones in the original mesh itself as it is one time operation.
+
+    Then, creates the final target action and assign it as current action of the armature
+    """
+
+    target_armature_obj = bpy.data.objects[TARGET_ARMATURE]
+    assert isinstance(target_armature_obj, bpy.types.Object)
+    assert target_armature_obj.type == "ARMATURE"
+
+    for bone in target_armature_obj.pose.bones:
+        bone.name = bone.name.replace(" ", "_")
+        bone.rotation_mode = "ZXY"
+
+    target_armature_obj.animation_data_create()
+    action_ref = bpy.data.actions.new(TARGET_ACTION_NAME)
+    target_armature_obj.animation_data.action = action_ref
 
 
 def execute_pipeline(arguments: argparse.Namespace) -> None:
@@ -341,9 +386,8 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
     if arguments.render_sentence:
         glue = Glue(
             mms=mms,
-            src_blendfile=DEFAULT_BLEND_SCENE,
-            src_armature_obj_name=TARGET_ARMATURE,
-            action_name=TARGET_ACTION_NAME
+            target_armature_obj_name=TARGET_ARMATURE,
+            target_action_name=TARGET_ACTION_NAME
         )
         render_sentence(sentence_id, generated_root, glue, arguments)
         return  # Exit the function. Because we do not need to continue at all.
@@ -413,6 +457,7 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
         bpy.data.objects.remove(obj)
 
     # Iterate on MMS rows
+    # For each row, create a new action with the inflected gloss animation
     for gloss in mms.glosses:
         logger.info(f"Processing gloss {gloss}: {mms[gloss].path}")
         # TODO -- Path might not exist if the "gloss" is <HOLD>
@@ -434,20 +479,26 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
             else:
                 armature_operator.resample(mms[gloss].timing(), use_rel_time=False)
 
-        # We add the extra controllers to ensure that we will be able to modify the
-        # animation down the pipeline.
+        # We add the extra controllers to ensure that we will be able to modify the animation down the pipeline.
         controller = Controller(inflected_armature, armature_operator.src_armature.name, ik_target_list, gloss[0])
         name = armature_operator.mms_line.output_name
         controller.setup_chain(
             source_armature=armature_operator.src_armature,
             target_armature=inflected_armature,
-            output_name=name,
+            inflected_action_name=name,
             mms_line=mms[gloss],
             without_inflection=arguments.without_inflection,
         )
 
+        # Perform the inflection !!!
         if not arguments.without_inflection:
             controller.execute(inflected_armature, mms[gloss])
+
+    # For each MMS line, the inflected action has been created
+    for gloss in mms.glosses:
+        mmsline = mms[gloss]
+        print("Expected inflected action presence ", "inflected_" + mmsline.output_name)
+        assert "inflected_" + mmsline.output_name in bpy.data.actions
 
     #
     # Call the data extraction if requested
@@ -463,34 +514,36 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
         )
         return
 
+    # Load the template scene
+    initialize_scene()
 
+    # Checks
+    assert TARGET_ARMATURE in bpy.context.scene.objects
+
+    # Initialize the target armature
+    initialize_armature()
+
+    assert TARGET_ACTION_NAME in bpy.data.actions
+    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data is not None
+    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data.action is not None
+    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data.action.name == TARGET_ACTION_NAME
 
     # Finally we merge individual signs to produce the final utterance of the full sentence.
     print("Merging inflected glosses into the final timeline...")
     glue = Glue(
         mms=mms,
-        src_blendfile=DEFAULT_BLEND_SCENE,
-        src_armature_obj_name=TARGET_ARMATURE,
-        action_name=TARGET_ACTION_NAME
+        target_armature_obj_name=TARGET_ARMATURE,
+        target_action_name=TARGET_ACTION_NAME
     )
-
-    # Checks
-    assert TARGET_ARMATURE in bpy.context.scene.objects
-    assert TARGET_ACTION_NAME in bpy.data.actions
-
-    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data is not None
-    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data.action is not None
-    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data.action.name == TARGET_ACTION_NAME
-
 
     # Since the animation data is essentially empty after initializing a new one,
     # it is necessary to create f-curves that match the source data.
-    glue.create_new_fcurves()
+    glue.prepare_target_fcurves()
 
-    # Checks
     assert bpy.context.active_object.name == TARGET_ARMATURE
-    # Also the referenced Armature has the same name
+    # Also the referenced Armature instance has the same name
     assert bpy.context.active_object.data.name == TARGET_ARMATURE
+
 
     # Put all the inflected glosses/actions into a final timeline
     glue.realize_mms(use_rel_time=arguments.use_relative_time)

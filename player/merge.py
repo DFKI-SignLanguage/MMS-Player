@@ -47,9 +47,8 @@ class Glue:
     def __init__(
             self,
             mms: MMS,
-            src_blendfile: str,
-            src_armature_obj_name: str,
-            action_name: str,
+            target_armature_obj_name: str,
+            target_action_name: str,
     ):
         """
         :param mms: MMS table containing all relevant gloss information.
@@ -59,54 +58,33 @@ class Glue:
         """
 
         self.mms = mms
+        self.src_armature_obj_name = target_armature_obj_name
+        self.target_action_name = target_action_name
 
-        self.src_blendfile = src_blendfile
-        self.src_armature_obj_name = src_armature_obj_name
 
-        self.target_action_name = action_name
-
-        self.initialize_scene()
-        self.initialize_armature()
-
-    def initialize_scene(self):
-        """Initialize the current Blender context:
-        i) Copy all objects and worlds from the source blender scene to the current context.
-        ii) Link all objects into the current context to work on them.
+    def prepare_target_fcurves(self, reference_action_name: Optional[str] = None):
+        """Create new empty fcurves in the action of the target armature.
+         Copies the list of fcurves from the given action parameter.
+         If the action name is not specified (default), the list of fcurves is taken from the first inflected gloss.
         """
 
-        # Select all objects and delete them.
-        # Will leave only the armature data and the actions.
-        bpy.ops.object.select_all(action="SELECT")
-        bpy.ops.object.delete()
+        armature_obj = bpy.data.objects[self.src_armature_obj_name]
+        bpy_utils.select_object(armature_obj)
 
-        # Load objects from the reference scene (nice character and lights)
-        with bpy.data.libraries.load(self.src_blendfile) as (data_from, data_to):
-            data_to.objects = data_from.objects
-            data_to.worlds = data_from.worlds
-        for obj in data_to.objects:
-            bpy.context.scene.collection.objects.link(obj)
-        bpy.context.scene.world = data_to.worlds[0]
+        # By default, use the action of the first gloss as reference
+        if reference_action_name is None:
+            # Take one source action
+            gloss = self.mms[self.mms.glosses[0]]
+            reference_action_name = f"inflected_{gloss.output_name}"
 
-    def initialize_armature(self):
-        """Replace the bone names in the rtemplate armature and create a new action.
-        The original names in the template scene are "Bone Pelvis". This name doesn't work for the
-        skeletal animations which are of format "Bone_Pelvis". Thus, we modify
-        the name of bones in the original mesh itself as it is one time operation.
+        action = bpy.data.actions[reference_action_name]
+        assert len(action.fcurves) != 0, f"The action {reference_action_name} has no animation data"
 
-        Then, creates the final target action and assign it as current action of the armature
-        """
+        for source_fcurve in action.fcurves:
+            armature_obj.animation_data.action.fcurves.new(
+                source_fcurve.data_path, index=source_fcurve.array_index
+            )
 
-        target_armature_obj = bpy.data.objects[self.src_armature_obj_name]
-        assert isinstance(target_armature_obj, bpy.types.Object)
-        assert target_armature_obj.type == "ARMATURE"
-
-        for bone in target_armature_obj.pose.bones:
-            bone.name = bone.name.replace(" ", "_")
-            bone.rotation_mode = "ZXY"
-
-        target_armature_obj.animation_data_create()
-        action_ref = bpy.data.actions.new(self.target_action_name)
-        target_armature_obj.animation_data.action = action_ref
 
     def perform_hold(self,
                      target_animation: str,
@@ -183,29 +161,6 @@ class Glue:
         logger.info(f"Last written frame: {end}")
 
         return end
-
-    def create_new_fcurves(self, reference_action_name: Optional[str] = None):
-        """Create new empty fcurves in the action of the target armature.
-         Copies the list of fcurves from the given action parameter.
-         If the action name is not specified (default), the list of fcurves is taken from the first inflected gloss.
-        """
-
-        armature_obj = bpy.data.objects[self.src_armature_obj_name]
-        bpy_utils.select_object(armature_obj)
-
-        # By default, use the action of the first gloss as reference
-        if reference_action_name is None:
-            # Take one source action
-            gloss = self.mms[self.mms.glosses[0]]
-            reference_action_name = f"inflected_{gloss.output_name}"
-
-        action = bpy.data.actions[reference_action_name]
-        assert len(action.fcurves) != 0, f"The action {reference_action_name} has no animation data"
-
-        for source_fcurve in action.fcurves:
-            armature_obj.animation_data.action.fcurves.new(
-                source_fcurve.data_path, index=source_fcurve.array_index
-            )
 
     def realize_mms(self, use_rel_time: bool = False):
         """Generate the timing data for individual glosses and merge them into final track.

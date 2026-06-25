@@ -74,7 +74,7 @@ class Controller:
     def setup_chain(self,
                     source_armature: bpy.types.Armature,
                     target_armature: bpy.types.Armature,
-                    output_name: str,
+                    inflected_action_name: str,
                     mms_line: MMSLine,
                     without_inflection: bool = False):
         """Set up the armature skeleton for animation.
@@ -100,12 +100,13 @@ class Controller:
         bpy_utils.select_object(target_armature)
         bpy.ops.object.mode_set(mode="POSE")
         bpy.ops.pose.select_all(action="SELECT")
-        new_action = bpy.data.actions.get(f"inflected_{output_name}")
+        new_action = bpy.data.actions.get(f"inflected_{inflected_action_name}")  # TODO -- try to get out of here this action name composition
         target_armature.animation_data.action = new_action
         bpy.context.object.animation_data.action = new_action
         bpy.context.scene.frame_set(start)
         # print("Baking the forward pose into the IK bones.")
-        # This handles the off-by-1 error!
+
+        # Copies the bone rotations from the source armature to the target, inflected one
         for frame in range(start, end + 1):
             bpy.context.scene.frame_set(frame)
             for bone in source_armature.pose.bones:
@@ -146,7 +147,7 @@ class Controller:
         #       Instead use the original animation. (Priority: Low)
 
     def execute(self, armature: bpy.types.Armature, mms_line: MMSLine):
-        """Inflect the IK targets and bake the animation.
+        """Inflect the IK targets of a given MMSLine and bake the animation.
 
         @param armature: The target armature containing the IK targets.
         @param mms_line: The MMS table
@@ -154,7 +155,8 @@ class Controller:
 
         bpy_utils.select_object(armature)
         bpy.ops.object.mode_set(mode="POSE")
-        action = bpy.data.actions.get(f"inflected_{mms_line.output_name}")
+    
+        action = bpy.data.actions.get(f"inflected_{mms_line.output_name}")  # TODO -- try to get out of here this action name composition
         bpy.context.object.animation_data.action = action
         start = int(action.frame_range[0])
         stop = int(action.frame_range[1])
