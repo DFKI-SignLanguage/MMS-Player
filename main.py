@@ -154,7 +154,12 @@ def add_options(arg_parser: argparse.ArgumentParser):
     )
 
     arg_parser.add_argument(
-        "--render-sentence", action="store_true", help="Render the sentence video."
+        "--render-sentence",
+        type=int,
+        help="Render the video of a si ngle specified sentence (AVASAG project)." \
+        " Provide an integer number X as parameter, it will be converted in 'SatzX.blend" \
+        "The file will be searched in the corpus in the folder 'generated/sentences/trimmed/'.",
+        required=False
     )
 
     arg_parser.add_argument(
@@ -285,37 +290,6 @@ def post_bake(
         bpy.ops.wm.save_as_mainfile(filepath=str(blend_path))
 
 
-def render_sentence(sentence_id: str, generated_root: Path, glue: Glue, arguments: argparse.Namespace) -> None:
-    """Render the original sentence from the database.
-
-    This function performs no inflection. Therefore, rendering is as straightforward as it can be.
-
-    @param sentence_id: The id of the sentence to render.
-    @param generated_root: The root path for the corpus database.
-    @param glue: Glue object that is used to connect compile the final animation.
-    @param arguments: Command-line arguments.
-    """
-    sentence_id = "Satz" + sentence_id.lstrip("0")
-    animation_data = Path(generated_root).joinpath(
-        "sentences", "trimmed", f"{sentence_id}.blend"
-    )
-    with bpy.data.libraries.load(str(animation_data)) as (data_from, data_to):
-        data_to.actions = data_from.actions
-    glue.prepare_target_fcurves(f"updated_{sentence_id}")
-    glue.append_action(target_action_name="final_action", source_action_name=f"updated_{sentence_id}", start=1)
-
-    post_bake(
-        armature_obj_name=glue.src_armature_obj_name,
-        action_name=glue.target_action_name,
-        mp4_path=arguments.export_mp4,
-        bvh_path=arguments.export_bvh,
-        fbx_path=arguments.export_fbx,
-        blend_path=arguments.export_blend,
-        render_size_pct=arguments.render_size_pct,
-        render_size_x=arguments.res_x,
-        render_size_y=arguments.res_y,
-    )
-
 def initialize_scene():
     """Initialize the current Blender context:
     i) Copy all objects and worlds from the source template blender scene to the current context.
@@ -362,7 +336,60 @@ def initialize_armature():
     target_armature_obj.animation_data.action = action_ref
 
 
-def execute_pipeline(arguments: argparse.Namespace) -> None:
+def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) -> None:
+    """
+    For some use cases, it is necessary for us to only render the single original entence data into the avatar.
+    Inflections are not needed
+    Thus, the following block assures that we load the correct sentence animation render it, but bypassing the instancing and inflection overhead.
+    This function performs no inflection. Therefore, rendering is as straightforward as it can be.
+    """
+
+    # Must be true otherwise this block is not called.
+    assert arguments.render_sentence is not None
+
+    sentence_id: int = arguments.render_sentence
+
+    # Initialize the target scene and armature
+    initialize_scene()
+    initialize_armature()
+
+    # Load the source animation data from the sentence file
+    sentence_file = "Satz" + str(sentence_id) + ".blend"
+    sentence_path = Path(arguments.corpus_generated_directory).joinpath(
+        "sentences", "trimmed", sentence_file
+    )
+
+    # Import the sentence animation
+    with bpy.data.libraries.load(str(sentence_path)) as (data_from, data_to):
+        data_to.actions = data_from.actions
+
+    glue = Glue(
+        mms=None,  # It won't be needed when rendering a single sentence
+        target_armature_obj_name=TARGET_ARMATURE,
+        target_action_name=TARGET_ACTION_NAME
+    )
+
+    # Prepare the target animation curves, specifiyng the name of the source action
+    # By manually specifying the source action, the mms is not needed.
+    source_action_name = "updated_Satz" + str(sentence_id)
+    glue.prepare_target_fcurves(source_action_name)
+    glue.append_action(target_action_name="final_action", source_action_name=source_action_name, start=1)
+
+    post_bake(
+        armature_obj_name=glue.src_armature_obj_name,
+        action_name=glue.target_action_name,
+        mp4_path=arguments.export_mp4,
+        bvh_path=arguments.export_bvh,
+        fbx_path=arguments.export_fbx,
+        blend_path=arguments.export_blend,
+        render_size_pct=arguments.render_size_pct,
+        render_size_x=arguments.res_x,
+        render_size_y=arguments.res_y,
+    )
+
+
+
+def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     """Execute the mms pipeline.
 
     What does this method do?
@@ -380,17 +407,6 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
     # Compose the MoCap file names and check for their availability
     mms.ensure_mocap_data_files()
 
-    # During the comparison it is necessary for us to only compute the sentence.
-    # Thus, the following block assures that we load the correct sentence animation
-    # and render the animation.
-    if arguments.render_sentence:
-        glue = Glue(
-            mms=mms,
-            target_armature_obj_name=TARGET_ARMATURE,
-            target_action_name=TARGET_ACTION_NAME
-        )
-        render_sentence(sentence_id, generated_root, glue, arguments)
-        return  # Exit the function. Because we do not need to continue at all.
 
     #
     # READ INFLECTION CONFIGURATION
@@ -452,7 +468,7 @@ def execute_pipeline(arguments: argparse.Namespace) -> None:
         logger.info("IK Target Config: %s", ik_target.dict)
     logger.info("==================================")
 
-    # Remove all existing objects from the scene
+    # Remove all existing temporary objects from the scene
     for obj in bpy.data.objects:
         bpy.data.objects.remove(obj)
 
@@ -584,7 +600,11 @@ if __name__ == "__main__":
     if args.log_to_console:
         enable_log_to_stdout()
 
-    print("Realizing MMS... ")
-    execute_pipeline(args)
+    if args.render_sentence:
+        print(f"Realizing single sentence with numer {args.render_sentence} ...")
+        execute_single_sentence_realization_pipeline(args)
+    else:
+        print(f"Realizing MMS from file '{args.source_mms_file}' ...")
+        execute_mms_realization_pipeline(args)
 
     print("All done.")
