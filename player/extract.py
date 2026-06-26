@@ -185,6 +185,7 @@ def create_f_curves(source_armature: bpy.types.Armature, sampled_action: bpy.typ
                 sampled_action.fcurves.new(data_path=path_name, index=i)
 
 
+# TODO --  seems to be unused. Keep it?
 def extract_source(source_armature, gloss, sample_size):
     # Get a sample action, if it doesn't exist, create it
     sampled_action = bpy.data.actions.get(f"sampled_{gloss.output_name}")
