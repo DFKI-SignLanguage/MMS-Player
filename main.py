@@ -38,7 +38,7 @@ from typing import List, Optional
 # The template Blender scene containing the character, the light setup, and some default rendering parameters
 DEFAULT_BLEND_SCENE = "./assets/gloria-260624.blend"
 # In the template scene, the name of the armature object to be animated.
-TARGET_ARMATURE = "skeleton #5"
+TARGET_ARMATURE_NAME = "skeleton #5"
 # In the template scene, the name of the camera object used for rendering.
 RENDER_CAMERA_NAME = "Camera"
 # The name of the final action containing the composed sign sequence
@@ -323,7 +323,7 @@ def initialize_armature():
     Then, creates the final target action and assign it as current action of the armature
     """
 
-    target_armature_obj = bpy.data.objects[TARGET_ARMATURE]
+    target_armature_obj = bpy.data.objects[TARGET_ARMATURE_NAME]
     assert isinstance(target_armature_obj, bpy.types.Object)
     assert target_armature_obj.type == "ARMATURE"
 
@@ -365,7 +365,7 @@ def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) 
 
     glue = Glue(
         mms=None,  # It won't be needed when rendering a single sentence
-        target_armature_obj_name=TARGET_ARMATURE,
+        target_armature_obj_name=TARGET_ARMATURE_NAME,
         target_action_name=TARGET_ACTION_NAME
     )
 
@@ -534,21 +534,21 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     initialize_scene()
 
     # Checks
-    assert TARGET_ARMATURE in bpy.context.scene.objects
+    assert TARGET_ARMATURE_NAME in bpy.context.scene.objects
 
     # Initialize the target armature
     initialize_armature()
 
     assert TARGET_ACTION_NAME in bpy.data.actions
-    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data is not None
-    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data.action is not None
-    assert bpy.context.scene.objects[TARGET_ARMATURE].animation_data.action.name == TARGET_ACTION_NAME
+    assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data is not None
+    assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data.action is not None
+    assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data.action.name == TARGET_ACTION_NAME
 
     # Finally we merge individual signs to produce the final utterance of the full sentence.
     print("Merging inflected glosses into the final timeline...")
     glue = Glue(
         mms=mms,
-        target_armature_obj_name=TARGET_ARMATURE,
+        target_armature_obj_name=TARGET_ARMATURE_NAME,
         target_action_name=TARGET_ACTION_NAME
     )
 
@@ -556,9 +556,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # it is necessary to create f-curves that match the source data.
     glue.prepare_target_fcurves()
 
-    assert bpy.context.active_object.name == TARGET_ARMATURE
+    assert bpy.context.active_object.name == TARGET_ARMATURE_NAME
     # Also the referenced Armature instance has the same name
-    assert bpy.context.active_object.data.name == TARGET_ARMATURE
+    # Actually, the skeleton instance might have been renamed while loading the animation data from the other scenes.
+    assert bpy.context.active_object.data.name.startswith(TARGET_ARMATURE_NAME), f"The name of the active object does not start with '{TARGET_ARMATURE_NAME}', but is '{bpy.context.active_object.data.name}'"
 
 
     # Put all the inflected glosses/actions into a final timeline

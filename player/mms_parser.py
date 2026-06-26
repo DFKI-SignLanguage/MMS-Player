@@ -38,13 +38,13 @@ class MMSLine:
     be inflected, the class functions to store and retrieve the data required
     for the inflection of the corresponding sign.
     """
-    def __init__(self, store_index: Dict[str, int], line_data: list, gloss_idx: int):
+    def __init__(self, store_index: Dict[str, int], line_data: List[Optional[str]], gloss_idx: int):
         self.store_index = store_index  # Maps the column name to its index within the MMS row
         self.line_data = line_data
         self.name, self.datatype = self.find_datatype(line_data[0])
         self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
         self.path = Path("/none")
-        self.data = None
+        self.data = None  # Reference to the bpy.data containing the gloss animation data.
         self.original_frame_range = None
         self.resampled_frame_range = None
 
@@ -79,6 +79,10 @@ class MMSLine:
 
         if not all((x, y, z)):
             return None
+        
+        assert x is not None
+        assert y is not None
+        assert z is not None
 
         return float(x), float(y), float(z)
 
@@ -203,7 +207,7 @@ class MMS:
     def __init__(self,
                  mms: Dict[Tuple[int, str], MMSLine],
                  generated_root: Path,
-                 inflections_availability: Dict[str, bool] = None):
+                 inflections_availability: Dict[str, bool]):
 
         self.mms: Dict[Tuple[int, str], MMSLine] = mms
         self.glosses: List[Tuple[int, str]] = list(mms.keys())
@@ -221,7 +225,7 @@ class MMS:
 
     def ensure_mocap_data_files(self) -> None:
         """
-        For each GLOSS in the MMS, as we assign the gloss path, we verify that the path exists.
+        For each GLOSS in the MMS, as we compose the gloss path and we verify that the path exists.
         Also, saves the path for each gloss file in the MMS table.
         If the required file doesn't exist, an Exception is thrown.
         """

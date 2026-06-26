@@ -39,8 +39,10 @@ class ArmatureOperator:
     """
 
     def __init__(self, mms_line: MMSLine) -> None:
+
         self.mms_line = mms_line
         self.src_armature = self.load_animation(mms_line.path)
+
         assert Path(mms_line.path).exists(), f"THE FILE '{mms_line.path}' DOESN'T EXIST."
 
     def load_animation(self, blend_path: Path) -> bpy.types.Object:
@@ -57,17 +59,28 @@ class ArmatureOperator:
             data_to.objects = data_from.objects
             data_to.armatures = data_from.armatures
             data_to.actions = data_from.actions
-            self.mms_line.data = data_to  # Store the link to current data.
+            self.mms_line.data = data_to  # Store in the mms line a reference to the the bpy.data containing objetcs, aramtures and actions of the current context, loaded form the animation blend file.
 
-        self.mms_line.data.armatures[0].name = self.mms_line.output_name
+        # Have to cycle through the objects, because they are not a dictionary, but a list (blender type bpy_lib !)
+        armature_obj = None
+        for o in self.mms_line.data.objects:
+            print(">>>", type(o), o.name, o.type)
+            if o.name == self.mms_line.name:
+                armature_obj = o
+                break
 
-        # link the context
-        for obj in self.mms_line.data.objects:
-            assert isinstance(obj, bpy.types.Object)
-            assert obj.type == 'ARMATURE'
-            bpy.context.scene.collection.objects.link(obj)
+        if armature_obj is None:
+            raise Exception(f"ARMATURE Object with name {self.mms_line.name} not found while loading animation for {self.mms_line.output_name}")
 
-        return self.mms_line.data.objects[0]
+        assert armature_obj.type == 'ARMATURE', f"Expected type ARMATURE for {armature_obj.name}: found '{armature_obj.type}' instead"
+
+        # Link the source armature to the current context
+        bpy.context.scene.collection.objects.link(armature_obj)
+
+        # Replacing the armature name with the one including the progress number
+        armature_obj.name = self.mms_line.output_name
+
+        return armature_obj
 
     def resample(self, timing: Union[Tuple[float, float], Tuple[float, bool]], use_rel_time: bool):
         """Resample the animation according to the timing information.
