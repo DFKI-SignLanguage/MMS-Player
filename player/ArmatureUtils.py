@@ -21,8 +21,9 @@
 import math
 import bpy
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional
 
+from .logging import logger
 from .mms_parser import MMSLine
 from . import bpy_utils, extract
 
@@ -52,6 +53,8 @@ class ArmatureOperator:
         context. Since the context data can be overwritten, we store a link in mms line.
         """
 
+        logger.info(f"Loading GLOSS animation data from '{blend_path}' ...")
+
         if not blend_path.exists():
             raise Exception(f"Failed to find the library data '{str(blend_path)}'.")
 
@@ -62,9 +65,9 @@ class ArmatureOperator:
             self.mms_line.data = data_to  # Store in the mms line a reference to the the bpy.data containing objetcs, aramtures and actions of the current context, loaded form the animation blend file.
 
         # Have to cycle through the objects, because they are not a dictionary, but a list (blender type bpy_lib !)
-        armature_obj = None
+        armature_obj: Optional[bpy.types.Object] = None
         for o in self.mms_line.data.objects:
-            print(">>>", type(o), o.name, o.type)
+            # print(">>>", type(o), o.name, o.type)
             if o.name == self.mms_line.name:
                 armature_obj = o
                 break
@@ -79,10 +82,14 @@ class ArmatureOperator:
 
         # Replacing the armature name with the one including the progress number
         armature_obj.name = self.mms_line.output_name
+        # Set the name of the imported action, avoiding duplicates and auto renaming in case of multiple glosses with the same name in the MMS
+        armature_obj.animation_data.action.name = "imported_" + self.mms_line.output_name
+
+        logger.info(f"Initialized armature '{armature_obj.name}' with action '{armature_obj.animation_data.action.name}'")
 
         return armature_obj
 
-    def resample(self, timing: Union[Tuple[float, float], Tuple[float, bool]], use_rel_time: bool):
+    def resample(self, timing: Union[Tuple[float, float], Tuple[float, bool]], target_action_name: str, use_rel_time: bool):
         """Resample the animation according to the timing information.
         We assume that the animation has been loaded in the current armature's action.
         This function will create a new action with the resampled duration and set it as current action.
@@ -96,12 +103,10 @@ class ArmatureOperator:
 
         # 1. Initialize the armature and create a new action.
         source_armature = self.src_armature
-        name = source_armature.animation_data.action.name
 
         self.mms_line.original_frame_range = source_armature.animation_data.action.frame_range
 
-        source_armature.animation_data.action.name = f"old_{name}"
-        sampled_action = bpy.data.actions.new(name=name)
+        sampled_action = bpy.data.actions.new(name=target_action_name)
 
         # Compute the resampling time
         # TODO -- bring this out and let the duration of a resampling be calculated in the MMSLine class

@@ -53,7 +53,7 @@ class Controller:
         @param armature: The source armature to be inflected.
         @param dictionary_armature_name: The name of the armature in dictionary.
         @param ik_targets: The list of IK targets responsible for controlling the bones.
-        @param idx: The identifier for the gloss.
+        @param idx: The progressive ID of the gloss in the sequence.
         """
         self.ik_targets = []
         # Dynamically compose the inflection targets that allow to perform the inflection.

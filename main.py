@@ -488,17 +488,25 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # sentence, we are resampling the animation frames.
         # The gloss animation data is loaded inside the ArmatureOperator constructor
         armature_operator = ArmatureOperator(mms[gloss])
+
+        # Here the "imported_" action has been created
+        mmsline = mms[gloss]
+        assert "imported_" + mmsline.output_name in bpy.data.actions
+
         inflected_armature = armature_operator.copy_armature()
         if not arguments.ignore_gloss_duration:
             if arguments.use_relative_time:
-                armature_operator.resample(mms[gloss].duration(), use_rel_time=True)
+                armature_operator.resample(timing=mms[gloss].duration(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=True)
             else:
-                armature_operator.resample(mms[gloss].timing(), use_rel_time=False)
+                armature_operator.resample(timing=mms[gloss].timing(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=False)
+
+        # Here the "updated_" animation has been created
+        assert "resampled_" + mmsline.output_name in bpy.data.actions
 
         # We add the extra controllers to ensure that we will be able to modify the animation down the pipeline.
-        controller = Controller(inflected_armature, armature_operator.src_armature.name, ik_target_list, gloss[0])
+        inflector = Controller(inflected_armature, armature_operator.src_armature.name, ik_target_list, gloss[0])
         name = armature_operator.mms_line.output_name
-        controller.setup_chain(
+        inflector.setup_chain(
             source_armature=armature_operator.src_armature,
             target_armature=inflected_armature,
             inflected_action_name=name,
@@ -506,14 +514,18 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
             without_inflection=arguments.without_inflection,
         )
 
+        # Here the target "inflected_..." action has been already created
+        assert "inflected_" + mmsline.output_name in bpy.data.actions
+
         # Perform the inflection !!!
         if not arguments.without_inflection:
-            controller.execute(inflected_armature, mms[gloss])
+            inflector.execute(inflected_armature, mms[gloss])
 
+    #
     # For each MMS line, the inflected action has been created
     for gloss in mms.glosses:
         mmsline = mms[gloss]
-        print("Expected inflected action presence ", "inflected_" + mmsline.output_name)
+        # print("Expected inflected action presence ", "inflected_" + mmsline.output_name)
         assert "inflected_" + mmsline.output_name in bpy.data.actions
 
     #
@@ -545,7 +557,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data.action.name == TARGET_ACTION_NAME
 
     # Finally we merge individual signs to produce the final utterance of the full sentence.
-    print("Merging inflected glosses into the final timeline...")
+    logger.info("Merging inflected glosses into the final timeline...")
     glue = Glue(
         mms=mms,
         target_armature_obj_name=TARGET_ARMATURE_NAME,
