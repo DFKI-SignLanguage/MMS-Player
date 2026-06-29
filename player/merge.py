@@ -204,7 +204,7 @@ class Glue:
                 # end = self.mms[gloss].duration()[0]
                 end_frame = self.perform_hold(
                         target_animation=self.target_action_name,
-                        source_animation=f"inflected_{self.mms[prev_gloss_id].output_name}",
+                        source_animation=f"inflected_{self.mms[prev_gloss_id].output_name}",  # TODO -- somehow remove this hard-coded name
                         start=start,
                         end=end
                 )
@@ -212,7 +212,7 @@ class Glue:
                 # Combine the animation and get the new end_frame
                 end_frame = self.append_action(
                     target_action_name=self.target_action_name,
-                    source_action_name=f"inflected_{self.mms[gloss].output_name}",
+                    source_action_name=f"inflected_{self.mms[gloss].output_name}",  # TODO -- somehow remove this hard-coded name
                     start=start
                 )
 

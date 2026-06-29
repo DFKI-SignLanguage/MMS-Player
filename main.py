@@ -314,7 +314,7 @@ def initialize_scene():
     bpy.context.scene.world = data_to.worlds[0]
 
 
-def initialize_armature():
+def initialize_target_armature():
     """Replace the bone names in the rtemplate armature and create a new action.
     The original names in the template scene are "Bone Pelvis". This name doesn't work for the
     skeletal animations which are of format "Bone_Pelvis". Thus, we modify
@@ -351,7 +351,7 @@ def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) 
 
     # Initialize the target scene and armature
     initialize_scene()
-    initialize_armature()
+    initialize_target_armature()
 
     # Load the source animation data from the sentence file
     sentence_file = "Satz" + str(sentence_id) + ".blend"
@@ -406,7 +406,6 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     mms = MMSParser(mms_file, generated_root).parse()
     # Compose the MoCap file names and check for their availability
     mms.ensure_mocap_data_files()
-
 
     #
     # READ INFLECTION CONFIGURATION
@@ -549,7 +548,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     assert TARGET_ARMATURE_NAME in bpy.context.scene.objects
 
     # Initialize the target armature
-    initialize_armature()
+    initialize_target_armature()
 
     assert TARGET_ACTION_NAME in bpy.data.actions
     assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data is not None
@@ -569,11 +568,11 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     glue.prepare_target_fcurves()
 
     assert bpy.context.active_object.name == TARGET_ARMATURE_NAME
-    # Also the referenced Armature instance has the same name
-    # Actually, the skeleton instance might have been renamed while loading the animation data from the other scenes.
+    # Also the referenced Armature instance has by default the same name,
+    # but might have been renamed while loading the animation data from the other scenes.
     assert bpy.context.active_object.data.name.startswith(TARGET_ARMATURE_NAME), f"The name of the active object does not start with '{TARGET_ARMATURE_NAME}', but is '{bpy.context.active_object.data.name}'"
 
-
+    #
     # Put all the inflected glosses/actions into a final timeline
     glue.realize_mms(use_rel_time=arguments.use_relative_time)
 
