@@ -514,8 +514,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         if not arguments.ignore_gloss_duration:
             if arguments.use_relative_time:
                 armature_operator.resample(timing=mmsline.duration(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=True)
+                armature_operator.resample_blendshapes_action(timing=mmsline.duration(), use_rel_time=True, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
             else:
                 armature_operator.resample(timing=mmsline.timing(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=False)
+                armature_operator.resample_blendshapes_action(timing=mmsline.duration(), use_rel_time=False, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
 
         # Here the "updated_" animation has been created
         assert "resampled_" + mmsline.output_name in bpy.data.actions
@@ -543,6 +545,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         mmsline = mms[gloss]
         # print("Expected inflected action presence ", "inflected_" + mmsline.output_name)
         assert "inflected_" + mmsline.output_name in bpy.data.actions
+        assert "resampled_blendshapes_" + mmsline.output_name in bpy.data.actions
 
     #
     # Call the data extraction if requested

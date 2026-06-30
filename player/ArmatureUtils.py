@@ -158,6 +158,54 @@ class ArmatureOperator:
 
         self.mms_line.resampled_frame_range = source_armature.animation_data.action.frame_range
 
+    def resample_blendshapes_action(self, timing: Union[Tuple[float, float], Tuple[float, bool]], use_rel_time: bool, src_action_name: str, target_action_name: str) -> None:
+        """Resample the given source action into a new action with the given target name.
+        :param timing:  If use_rel_time is False, the timing is a tuple containing the MMS (framestart, frameend)
+         already converted in frame position.
+          If use_rel_time if True, the timing is a tuple (duration, pct),
+           where the duration can be expressed as absolute vale in frames, or as a percentage of the original duration.
+        :param use_rel_time: whether to use relative timing, or not.
+        :param src_ation_name: The name of the existing action
+        :param target_action_name: The name of the action to be created
+        """
+
+        src_action = bpy.data.actions[src_action_name]
+
+        # Compute target_frame_count — same logic as resample()
+        if not use_rel_time:
+            start, end = timing
+            target_frame_count = end - start + 1
+        else:
+            duration_or_prop, is_proportion = timing
+            if is_proportion:
+                frame_start = int(src_action.frame_range[0])
+                frame_end = int(src_action.frame_range[1])
+                target_frame_count = math.ceil(duration_or_prop * (frame_end - frame_start) + 1)
+            else:
+                target_frame_count = duration_or_prop
+
+        sampled_action = bpy.data.actions.new(name=target_action_name)
+
+        # Mirror every fcurve from the source into the new action
+        for src_fcurve in src_action.fcurves:
+            sampled_action.fcurves.new(data_path=src_fcurve.data_path, index=src_fcurve.array_index)
+
+        # Build sample points spanning the source frame range
+        frame_start = int(src_action.frame_range[0])
+        frame_end = int(src_action.frame_range[1])
+        target_frame_count = int(target_frame_count)
+        ratio = (frame_end - frame_start) / (target_frame_count - 1)
+        samples = [frame_start + x * ratio for x in range(target_frame_count)]
+
+        for frame_number, sample in enumerate(samples):
+            for src_fcurve in src_action.fcurves:
+                sampled_value = src_fcurve.evaluate(sample)
+                target_fcurve = sampled_action.fcurves.find(src_fcurve.data_path, index=src_fcurve.array_index)
+                target_fcurve.keyframe_points.insert(frame_number + 1, sampled_value)
+
+        assert target_action_name in bpy.data.actions
+
+
     def copy_armature(self) -> bpy.types.Object:
         """Creates a copy of the armature and its animation.
         :return: the reference to the armature copy.
