@@ -44,7 +44,7 @@ from .mms_parser import MMSLine
 class Controller:
     """Responsible for orchestrating the IK controller."""
     def __init__(self,
-                 armature: bpy.types.Armature,
+                 armature: bpy.types.Object,
                  dictionary_armature_name: str,
                  ik_targets: List[targets.IKTargetConfig],
                  idx: int) -> None:
@@ -111,6 +111,7 @@ class Controller:
         end = int(source_action.frame_range[1])
         # print(f"Source animation {action.name} range: {start} to {end}")
         # 1. Copy skeletal animation from the main action track to the "inflected" one
+        # TODO --  check if it is really needed to switch to POSE mode and use operators at all.
         bpy_utils.select_object(target_armature)
         bpy.ops.object.mode_set(mode="POSE")
         bpy.ops.pose.select_all(action="SELECT")
@@ -153,6 +154,7 @@ class Controller:
                 obj.ctrl.keyframe_insert("rotation_quaternion", frame=frame)
 
         bpy.ops.object.mode_set(mode="OBJECT")
+
         for bone in self.ik_targets:
             bone.add_constraints()
             if not without_inflection:
@@ -160,14 +162,14 @@ class Controller:
         # TODO: When without inflection, avoid the baking and copying animation.
         #       Instead use the original animation. (Priority: Low)
 
-    def execute(self, armature: bpy.types.Armature, mms_line: MMSLine):
+    def execute(self, armature_obj: bpy.types.Object, mms_line: MMSLine):
         """Inflect the IK targets of a given MMSLine and bake the animation.
 
         @param armature: The target armature containing the IK targets.
         @param mms_line: The MMS table
         """
 
-        bpy_utils.select_object(armature)
+        bpy_utils.select_object(armature_obj)
         bpy.ops.object.mode_set(mode="POSE")
     
         action = bpy.data.actions.get(f"inflected_{mms_line.output_name}")  # TODO -- try to get out of here this action name composition
