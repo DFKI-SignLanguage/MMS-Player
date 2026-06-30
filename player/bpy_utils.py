@@ -23,7 +23,7 @@ import mathutils
 import tempfile
 from pathlib import Path
 
-from mathutils import Vector
+from typing import List, Tuple
 
 
 def select_object(bpy_object):

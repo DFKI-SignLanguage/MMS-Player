@@ -71,10 +71,15 @@ class ArmatureOperator:
         # Have to cycle through the objects, because they are not a dictionary, but a list (blender type bpy_lib !)
         armature_obj: Optional[bpy.types.Object] = None
         for o in self.mms_line.data.objects:
-            # print(">>>", type(o), o.name, o.type)
-            if o.name == self.mms_line.name:
-                armature_obj = o
-                break
+            if o.type == 'ARMATURE':
+                if self.mms_line.name == "<HOLD>":
+                    logger.info(f"While loading the animation for <HOLD> gloss {self.mms_line.output_name}, using the first found armature '{o.name}'. We are not checking if the armature name is the same as in the previous gloss.")
+                    armature_obj = o
+                    break
+                # print(">>>", type(o), o.name, o.type)
+                elif o.name == self.mms_line.name:
+                    armature_obj = o
+                    break
 
         if armature_obj is None:
             raise Exception(f"ARMATURE Object with name {self.mms_line.name} not found while loading animation for {self.mms_line.output_name}")
@@ -94,7 +99,7 @@ class ArmatureOperator:
         #
         # Check for the presence of the Blendshape face animation
         face_action_name = "blendshapes_" + self.mms_line.name
-        if face_action_name not in bpy.data.actions:
+        if self.mms_line.name != "<HOLD>" and face_action_name not in bpy.data.actions:
             raise Exception(f"Face animation '{face_action_name}' not found in loaded scene.")
 
         # Rename the action to a unique name

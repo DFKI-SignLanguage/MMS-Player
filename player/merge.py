@@ -21,8 +21,7 @@
 import bpy
 import json
 
-from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Tuple
 from .mms_parser import MMS
 from .logging import logger
 from . import bpy_utils
@@ -47,43 +46,54 @@ class Glue:
     def __init__(
             self,
             mms: MMS,
-            target_armature_obj_name: str,
+            target_armature_obj: bpy.types.Object,
+            target_mesh_obj: bpy.types.Object,
             target_action_name: str,
+            target_shapekeys_action_name: str
     ):
         """
         :param mms: MMS table containing all relevant gloss information.
-        :param src_blendfile: The scene that contains the character assets.
-        :param src_armature_obj_name: The name of the Armature object that we are going to animate.
-        :param action_name: The name of new action to write the keyframes.
+        :param target_armature_obj: The armature object that will be animated with the sequence of glosses (skeleton).
+        :param target_mesh_obj: The mesh object that will be animated with the sequence of glosses (mesh).
+        :param target_action_name: The name of new action to write the keyframes for the armature.
+        :param target_shapekeys_action_name: The name of new action to write the keyframes for the mesh animation.
         """
 
         self.mms = mms
-        self.src_armature_obj_name = target_armature_obj_name
-        self.target_action_name = target_action_name
+        self.armature_obj = target_armature_obj
+        self.mesh_obj = target_mesh_obj
+        self.action_name = target_action_name
+        self.shapekeys_action_name = target_shapekeys_action_name
+
+        self.shape_keys: bpy.types.Key = self.mesh_obj.data.shape_keys
+
+        self.target_action: Optional[bpy.types.Action] = None
+        self.target_shapekeys_action: Optional[bpy.types.Action] = None
 
 
-    def prepare_target_fcurves(self, reference_action_name: Optional[str] = None):
-        """Create new empty fcurves in the action of the target armature.
-         Copies the list of fcurves from the given action parameter.
-         If the action name is not specified (default), the list of fcurves is taken from the first inflected gloss.
+    def prepare_target_actions(self, reference_action: bpy.types.Action, reference_shapekeys_action: bpy.types.Action):
+        """Create new empty actions for the target armature and mesh objects.
+         Copies the list of fcurves from the given actions parameter.
         """
 
-        armature_obj = bpy.data.objects[self.src_armature_obj_name]
-        bpy_utils.select_object(armature_obj)
+        #
+        # Initialize the ARMATURE
+        self.armature_obj.animation_data_create()
+        self.target_action = bpy.data.actions.new(self.action_name)
+        self.armature_obj.animation_data.action = self.target_action
 
-        # By default, use the action of the first gloss as reference
-        if reference_action_name is None:
-            # Take one source action
-            gloss = self.mms[self.mms.glosses[0]]
-            reference_action_name = f"inflected_{gloss.output_name}"
+        for source_fcurve in reference_action.fcurves:
+            self.target_action.fcurves.new(source_fcurve.data_path, index=source_fcurve.array_index)
 
-        action = bpy.data.actions[reference_action_name]
-        assert len(action.fcurves) != 0, f"The action {reference_action_name} has no animation data"
+        #
+        # Initialize the MESH
 
-        for source_fcurve in action.fcurves:
-            armature_obj.animation_data.action.fcurves.new(
-                source_fcurve.data_path, index=source_fcurve.array_index
-            )
+        self.shape_keys.animation_data_create()
+        self.target_shapekeys_action = bpy.data.actions.new(self.shapekeys_action_name)
+        self.shape_keys.animation_data.action = self.target_shapekeys_action
+
+        for source_fcurve in reference_shapekeys_action.fcurves:
+            self.target_shapekeys_action.fcurves.new(source_fcurve.data_path, index=source_fcurve.array_index)
 
 
     def perform_hold(self,
@@ -120,8 +130,8 @@ class Glue:
         return end
 
     def append_action(self,
-                          target_action_name: str,
-                          source_action_name: str,
+                          target_action: bpy.types.Action,
+                          source_action: bpy.types.Action,
                           start: float) -> int:
         """Appends the data of a source action into a target action, starting from the given keyframe.
         Returns the keyframe number of the last added frame (acccording to the size of the source action).
@@ -132,19 +142,18 @@ class Glue:
         :param print_debug: Debug flag.
         """
 
-        source_action = bpy.data.actions[source_action_name]
         action_start, action_end = source_action.frame_range
 
-        logger.info(f"Copying the keyframes from {source_action_name} into {target_action_name} at frame {start}")
+        logger.info(f"Copying the keyframes from {source_action.name} into {target_action.name} at frame {start}")
         logger.info(f"Source action range is {action_start}-{action_end}")
 
-        target_action = bpy.data.actions[target_action_name]
 
-        # Iterate over all the animation curves
+        # Iterate over all the animation curves and copy the data
         for source_fcurve in source_action.fcurves:
             target_fcurve = target_action.fcurves.find(
                 source_fcurve.data_path, index=source_fcurve.array_index
             )
+            # print(f"After searching {source_fcurve.data_path} --> {target_fcurve}")
             # Copy, 1-by-1, all the keyframes
             for i, src_kfp in enumerate(source_fcurve.keyframe_points):
                 # Co-ordinates of the control points, starts from 0.
@@ -203,16 +212,22 @@ class Glue:
                 prev_gloss_id = self.mms.glosses[prev_gloss_index]
                 # end = self.mms[gloss].duration()[0]
                 end_frame = self.perform_hold(
-                        target_animation=self.target_action_name,
-                        source_animation=f"inflected_{self.mms[prev_gloss_id].output_name}",  # TODO -- somehow remove this hard-coded name
+                        target_animation=self.target_action,
+                        source_animation=bpy.data.actions[f"inflected_{self.mms[prev_gloss_id].output_name}"],  # TODO -- somehow remove this hard-coded name
                         start=start,
                         end=end
                 )
             else:
                 # Combine the animation and get the new end_frame
                 end_frame = self.append_action(
-                    target_action_name=self.target_action_name,
-                    source_action_name=f"inflected_{self.mms[gloss].output_name}",  # TODO -- somehow remove this hard-coded name
+                    target_action=self.target_action,
+                    source_action=bpy.data.actions[f"inflected_{self.mms[gloss].output_name}"],  # TODO -- somehow remove this hard-coded name
+                    start=start
+                )
+
+                end_frame_shapekeys = self.append_action(
+                    target_action=self.target_shapekeys_action,
+                    source_action=bpy.data.actions[f"resampled_blendshapes_{self.mms[gloss].output_name}"],  # TODO -- somehow remove this hard-coded name
                     start=start
                 )
 

@@ -28,6 +28,7 @@ from player.ArmatureUtils import ArmatureOperator
 from player.merge import Glue
 from player.controllers import Controller
 from player.targets import IKTargetConfig
+from player.bpy_utils import select_object
 from player.logging import logger
 from player.logging import enable_log_to_stdout
 from player import extract
@@ -39,10 +40,15 @@ from typing import List, Optional
 DEFAULT_BLEND_SCENE = "./assets/gloria-260624.blend"
 # In the template scene, the name of the armature object to be animated.
 TARGET_ARMATURE_NAME = "skeleton #5"
+# In the template scene, the name of the face to be animated
+TARGET_MESH_NAME = "gloria"
 # In the template scene, the name of the camera object used for rendering.
 RENDER_CAMERA_NAME = "Camera"
 # The name of the final action containing the composed sign sequence
 TARGET_ACTION_NAME = "final_action"
+# The name of the final ShapeKeys action containing the composed sign sequence for the facial animation
+TARGET_SHAPEKEYS_ACTION_NAME = "final_shapekeys_action"
+
 # Path to the JSON file with the list of bones to ignore during animation procedures
 # BONES_IGNORE_LIST_PATH = "./assets/ignorelist.json"
 
@@ -331,10 +337,6 @@ def initialize_target_armature():
         bone.name = bone.name.replace(" ", "_")
         bone.rotation_mode = "ZXY"
 
-    target_armature_obj.animation_data_create()
-    action_ref = bpy.data.actions.new(TARGET_ACTION_NAME)
-    target_armature_obj.animation_data.action = action_ref
-
 
 def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) -> None:
     """
@@ -494,7 +496,6 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # Pass it through the ArmatureOperator class and prepare the animation for further
         # processing. Since we want to have the same number of frames as the source
         # sentence, we are resampling the animation frames.
-        # The gloss animation data is loaded inside the ArmatureOperator constructor
         armature_operator = ArmatureOperator(mmsline)
 
         armature_operator.load_animation()
@@ -566,31 +567,61 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     # Checks
     assert TARGET_ARMATURE_NAME in bpy.context.scene.objects
+    assert TARGET_ARMATURE_NAME in bpy.data.objects
+    assert TARGET_MESH_NAME in bpy.context.scene.objects
+    assert TARGET_MESH_NAME in bpy.data.objects
 
-    # Initialize the target armature
+    # Check the types and fix the bone names of the target armature
     initialize_target_armature()
+
+    #
+    # Finally we merge individual signs to produce the final utterance of the full sentence.
+    logger.info("Merging inflected glosses into the final timeline...")
+
+    target_armature = bpy.data.objects[TARGET_ARMATURE_NAME]
+    target_mesh = bpy.data.objects[TARGET_MESH_NAME]
+
+    assert target_armature.type == 'ARMATURE'
+    assert target_mesh.type == 'MESH'
+
+    glue = Glue(
+        mms=mms,
+        target_armature_obj=target_armature,
+        target_mesh_obj=target_mesh,
+        target_action_name=TARGET_ACTION_NAME,
+        target_shapekeys_action_name=TARGET_SHAPEKEYS_ACTION_NAME
+    )
+
+    # Since the animation data is empty after initializing a new one,
+    # it is necessary to create f-curves that match the source data.
+
+    # Take reference to the first gloss and their created actions.
+    # They will be used as reference to create the fcurves in the target actions.
+    gloss0 = mms.glosses[0]
+    mmsline0 = mms[gloss0]
+
+    ref_action = bpy.data.actions["inflected_" + mmsline0.output_name]
+    ref_shapekeys_action = bpy.data.actions["resampled_blendshapes_" + mmsline0.output_name]
+
+    glue.prepare_target_actions(reference_action=ref_action, reference_shapekeys_action=ref_shapekeys_action)
 
     assert TARGET_ACTION_NAME in bpy.data.actions
     assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data is not None
     assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data.action is not None
     assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data.action.name == TARGET_ACTION_NAME
 
-    # Finally we merge individual signs to produce the final utterance of the full sentence.
-    logger.info("Merging inflected glosses into the final timeline...")
-    glue = Glue(
-        mms=mms,
-        target_armature_obj_name=TARGET_ARMATURE_NAME,
-        target_action_name=TARGET_ACTION_NAME
-    )
-
-    # Since the animation data is essentially empty after initializing a new one,
-    # it is necessary to create f-curves that match the source data.
-    glue.prepare_target_fcurves()
-
+    select_object(bpy.data.objects[TARGET_ARMATURE_NAME])
     assert bpy.context.active_object.name == TARGET_ARMATURE_NAME
     # Also the referenced Armature instance has by default the same name,
     # but might have been renamed while loading the animation data from the other scenes.
     assert bpy.context.active_object.data.name.startswith(TARGET_ARMATURE_NAME), f"The name of the active object does not start with '{TARGET_ARMATURE_NAME}', but is '{bpy.context.active_object.data.name}'"
+
+    # Prepare action and fcurves for the facial animation
+    # Gather fcurves data from the first gloss
+    # fcurves_info = gather_fcurves_info(action=bpy.data.actions["resampled_blendshapes_" + mmsline.output_name])
+    # glue.prepare_target_action(new_action_name=TARGET_SHAPEKEYS_ACTION_NAME, curves_info=fcurves_info)
+
+    assert TARGET_SHAPEKEYS_ACTION_NAME in bpy.data.actions
 
     #
     # Put all the inflected glosses/actions into a final timeline
@@ -598,8 +629,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     # Finalize the scene and export as MP4, BVH, FBX, or binary blender scene
     post_bake(
-        armature_obj_name=glue.src_armature_obj_name,
-        action_name=glue.target_action_name,
+        armature_obj_name=glue.armature_obj.name,
+        action_name=glue.target_action.name,
         mp4_path=arguments.export_mp4,
         bvh_path=arguments.export_bvh,
         fbx_path=arguments.export_fbx,
