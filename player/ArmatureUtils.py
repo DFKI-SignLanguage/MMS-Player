@@ -42,16 +42,16 @@ class ArmatureOperator:
     def __init__(self, mms_line: MMSLine) -> None:
 
         self.mms_line = mms_line
-        self.src_armature = self.load_animation(mms_line.path)
+        self.src_armature: Optional[bpy.types.Object] = None
 
-        assert Path(mms_line.path).exists(), f"THE FILE '{mms_line.path}' DOESN'T EXIST."
-
-    def load_animation(self, blend_path: Path) -> bpy.types.Object:
+    def load_animation(self) -> None:
         """Load the animation into the scene.
 
         This code copies the assets from the library and links it into the current blender
         context. Since the context data can be overwritten, we store a link in mms line.
         """
+
+        blend_path = self.mms_line.path
 
         logger.info(f"Loading GLOSS animation data from '{blend_path}' ...")
 
@@ -62,7 +62,11 @@ class ArmatureOperator:
             data_to.objects = data_from.objects
             data_to.armatures = data_from.armatures
             data_to.actions = data_from.actions
-            self.mms_line.data = data_to  # Store in the mms line a reference to the the bpy.data containing objetcs, aramtures and actions of the current context, loaded form the animation blend file.
+            self.mms_line.data = data_to  # Store in the mms line a reference to the the bpy.data containing objetcs, aramtures and actions of the current context, loaded from the animation blend file.
+
+        #
+        # Find the armature and import it with the associated armature action
+        #
 
         # Have to cycle through the objects, because they are not a dictionary, but a list (blender type bpy_lib !)
         armature_obj: Optional[bpy.types.Object] = None
@@ -87,7 +91,17 @@ class ArmatureOperator:
 
         logger.info(f"Initialized armature '{armature_obj.name}' with action '{armature_obj.animation_data.action.name}'")
 
-        return armature_obj
+        #
+        # Check for the presence of the Blendshape face animation
+        face_action_name = "blendshapes_" + self.mms_line.name
+        if face_action_name not in bpy.data.actions:
+            raise Exception(f"Face animation '{face_action_name}' not found in loaded scene.")
+
+        # Rename the action to a unique name
+        face_action = bpy.data.actions[face_action_name]
+        face_action.name = "imported_blendshapes_" + self.mms_line.output_name
+
+        self.src_armature = armature_obj
 
     def resample(self, timing: Union[Tuple[float, float], Tuple[float, bool]], target_action_name: str, use_rel_time: bool):
         """Resample the animation according to the timing information.
@@ -144,11 +158,15 @@ class ArmatureOperator:
 
         self.mms_line.resampled_frame_range = source_armature.animation_data.action.frame_range
 
-    def copy_armature(self):
+    def copy_armature(self) -> bpy.types.Object:
         """Creates a copy of the armature and its animation.
         :return: the reference to the armature copy.
         """
         bpy_utils.select_object(self.src_armature)
+
+        if self.src_armature is None:
+            raise Exception("Can't copy the armature. Source is None")
+
         duplicate_armature = bpy_utils.duplicate(
             self.src_armature, self.mms_line.output_name
         )

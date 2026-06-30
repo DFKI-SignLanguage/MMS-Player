@@ -64,13 +64,14 @@ def select_bone(bone):
     bone.select_tail = True
 
 
-def duplicate(src_armature, name):
+def duplicate(src_armature: bpy.types.Object, name: str) -> bpy.types.Object:
     duplicate_armature = src_armature.copy()
     duplicate_armature.data = src_armature.data.copy()
     duplicate_armature.animation_data_clear()
     duplicate_armature.animation_data_create()
     bpy.context.collection.objects.link(duplicate_armature)
 
+    # TODO --  get out of here all those names preparation
     select_object(duplicate_armature)
     bpy.context.object.name = f"inflected_{name}"
     bpy.context.object.data.name = f"inflected_{name}"

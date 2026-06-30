@@ -100,7 +100,7 @@ class Controller:
         bpy_utils.select_object(target_armature)
         bpy.ops.object.mode_set(mode="POSE")
         bpy.ops.pose.select_all(action="SELECT")
-        new_action = bpy.data.actions.get(f"inflected_{inflected_action_name}")  # TODO -- try to get out of here this action name composition
+        new_action = bpy.data.actions.get(inflected_action_name)
         target_armature.animation_data.action = new_action
         bpy.context.object.animation_data.action = new_action
         bpy.context.scene.frame_set(start)

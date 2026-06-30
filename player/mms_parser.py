@@ -43,7 +43,7 @@ class MMSLine:
         self.line_data = line_data
         self.name, self.datatype = self.find_datatype(line_data[0])
         self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
-        self.path = Path("/none")
+        self.path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
         self.data = None  # Reference to the bpy.data containing the gloss animation data.
         self.original_frame_range = None
         self.resampled_frame_range = None
@@ -250,6 +250,7 @@ class MMS:
                 if not gloss_path.exists():
                     raise Exception(f"Expected motion capture file '{gloss_path}' not present for {gloss.name}.")
 
+            # Set the Path to the Blender scene.
             self[gloss_id].path = gloss_path
 
 

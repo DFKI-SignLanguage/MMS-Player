@@ -407,6 +407,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # Compose the MoCap file names and check for their availability
     mms.ensure_mocap_data_files()
 
+    for gloss in mms.glosses:
+        mmsline = mms[gloss]
+        assert mmsline.path is not None
+
     #
     # READ INFLECTION CONFIGURATION
 
@@ -474,9 +478,14 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # Iterate on MMS rows
     # For each row, create a new action with the inflected gloss animation
     for gloss in mms.glosses:
-        logger.info(f"Processing gloss {gloss}: {mms[gloss].path}")
+
+        mmsline = mms[gloss]
+
+        logger.info(f"Processing gloss {gloss} from file {mmsline.path}")
+
         # TODO -- Path might not exist if the "gloss" is <HOLD>
-        if not mms[gloss].path.exists():
+        assert mmsline.path is not None
+        if not mmsline.path.exists():
             raise Exception(f"File '{mms[gloss].path}' not found for gloss {gloss}.")
 
         # TODO -- in case of HOLD, now we are essentially resampling the whole action of the previous gloss.
@@ -486,29 +495,37 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # processing. Since we want to have the same number of frames as the source
         # sentence, we are resampling the animation frames.
         # The gloss animation data is loaded inside the ArmatureOperator constructor
-        armature_operator = ArmatureOperator(mms[gloss])
+        armature_operator = ArmatureOperator(mmsline)
 
-        # Here the "imported_" action has been created
-        mmsline = mms[gloss]
+        armature_operator.load_animation()
+
+        # The source armature has been loaded
+        assert armature_operator.src_armature is not None
+        # Here the "imported_" actions have been created
         assert "imported_" + mmsline.output_name in bpy.data.actions
+        assert "imported_blendshapes_" + mmsline.output_name in bpy.data.actions
 
         inflected_armature = armature_operator.copy_armature()
+
+        # Inflected animation is already prepared while copying the armature.
+        # TODO -- Postpone action creation.
+        assert f"inflected_{mmsline.output_name}" in bpy.data.actions
+
         if not arguments.ignore_gloss_duration:
             if arguments.use_relative_time:
-                armature_operator.resample(timing=mms[gloss].duration(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=True)
+                armature_operator.resample(timing=mmsline.duration(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=True)
             else:
-                armature_operator.resample(timing=mms[gloss].timing(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=False)
+                armature_operator.resample(timing=mmsline.timing(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=False)
 
         # Here the "updated_" animation has been created
         assert "resampled_" + mmsline.output_name in bpy.data.actions
 
         # We add the extra controllers to ensure that we will be able to modify the animation down the pipeline.
         inflector = Controller(inflected_armature, armature_operator.src_armature.name, ik_target_list, gloss[0])
-        name = armature_operator.mms_line.output_name
         inflector.setup_chain(
             source_armature=armature_operator.src_armature,
             target_armature=inflected_armature,
-            inflected_action_name=name,
+            inflected_action_name=f"inflected_{mmsline.output_name}",
             mms_line=mms[gloss],
             without_inflection=arguments.without_inflection,
         )
@@ -518,7 +535,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         # Perform the inflection !!!
         if not arguments.without_inflection:
-            inflector.execute(inflected_armature, mms[gloss])
+            inflector.execute(inflected_armature, mmsline)
 
     #
     # For each MMS line, the inflected action has been created
