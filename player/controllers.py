@@ -72,8 +72,8 @@ class Controller:
             self.ik_targets.append(ik_target)
 
     def setup_chain(self,
-                    source_armature: bpy.types.Armature,
-                    target_armature: bpy.types.Armature,
+                    source_armature: bpy.types.Object,
+                    target_armature: bpy.types.Object,
                     inflected_action_name: str,
                     mms_line: MMSLine,
                     without_inflection: bool = False):
@@ -92,6 +92,20 @@ class Controller:
             2. Once we copy the animation, we update the animation of corresponding
             IK controllers.
         """
+
+        if source_armature.animation_data is None:
+            raise Exception("Animation data missing in source armature object")
+
+        if source_armature.animation_data.action is None:
+            raise Exception("Action missing in source armature object")
+
+        if target_armature.animation_data is None:
+            raise Exception("Animation data missing in target armature object")
+
+        if target_armature.animation_data.action is None:
+            raise Exception("Action missing in target armature object")
+
+
         source_action = source_armature.animation_data.action
         start = int(source_action.frame_range[0])
         end = int(source_action.frame_range[1])
