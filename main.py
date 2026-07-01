@@ -206,6 +206,10 @@ def post_bake(
     armature.hide_set(True)
 
     #
+    # Hide the face rig
+    bpy.data.objects['FaceitRig'].hide_viewport = True
+
+    #
     # Set the render range
     frame_start = armature.animation_data.action.frame_range[0]
     frame_end = armature.animation_data.action.frame_range[1]
