@@ -87,7 +87,6 @@ class Glue:
 
         #
         # Initialize the MESH
-
         self.shape_keys.animation_data_create()
         self.target_shapekeys_action = bpy.data.actions.new(self.shapekeys_action_name)
         self.shape_keys.animation_data.action = self.target_shapekeys_action
@@ -211,11 +210,18 @@ class Glue:
                 #prev_gloss_id = self.mms.glosses[prev_gloss_index]
                 # end = self.mms[gloss].duration()[0]
                 end_frame = self.perform_hold(
-                        target_action=self.target_action,
-                        source_action=bpy.data.actions[f"inflected_{self.mms[gloss].output_name}"],  # TODO -- somehow remove this hard-coded name
-                        start=start,
-                        end=end
+                    target_action=self.target_action,
+                    source_action=bpy.data.actions[f"inflected_{self.mms[gloss].output_name}"],  # TODO -- somehow remove this hard-coded name
+                    start=start,
+                    end=end
                 )
+                end_frame = self.perform_hold(
+                    target_action=self.target_shapekeys_action,
+                    source_action=bpy.data.actions[f"resampled_blendshapes_{self.mms[gloss].output_name}"],  # TODO -- somehow remove this hard-coded name
+                    start=start,
+                    end=end
+                )
+
             else:
                 # Combine the animation and get the new end_frame
                 end_frame = self.append_action(
