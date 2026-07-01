@@ -62,7 +62,7 @@ class ArmatureOperator:
             data_to.objects = data_from.objects
             data_to.armatures = data_from.armatures
             data_to.actions = data_from.actions
-            self.mms_line.data = data_to  # Store in the mms line a reference to the the bpy.data containing objetcs, aramtures and actions of the current context, loaded from the animation blend file.
+            self.mms_line.bpy_data = data_to  # Store in the mms line a reference to the the bpy.data containing objetcs, aramtures and actions of the current context, loaded from the animation blend file.
 
         #
         # Find the armature and import it with the associated armature action
@@ -70,7 +70,7 @@ class ArmatureOperator:
 
         # Have to cycle through the objects, because they are not a dictionary, but a list (blender type bpy_lib !)
         armature_obj: Optional[bpy.types.Object] = None
-        for o in self.mms_line.data.objects:
+        for o in self.mms_line.bpy_data.objects:
             if o.type == 'ARMATURE':
                 if self.mms_line.name == "<HOLD>":
                     logger.info(f"While loading the animation for <HOLD> gloss {self.mms_line.output_name}, using the first found armature '{o.name}'. We are not checking if the armature name is the same as in the previous gloss.")
@@ -123,7 +123,7 @@ class ArmatureOperator:
         # 1. Initialize the armature and create a new action.
         source_armature = self.src_armature
 
-        self.mms_line.original_frame_range = source_armature.animation_data.action.frame_range
+        self.mms_line.original_frame_range = source_armature.animation_data.action.frame_range[0], source_armature.animation_data.action.frame_range[1]
 
         sampled_action = bpy.data.actions.new(name=target_action_name)
 
@@ -161,7 +161,7 @@ class ArmatureOperator:
 
         source_armature.animation_data.action = sampled_action
 
-        self.mms_line.resampled_frame_range = source_armature.animation_data.action.frame_range
+        self.mms_line.resampled_frame_range = source_armature.animation_data.action.frame_range[0], source_armature.animation_data.action.frame_range[1]
 
     def resample_blendshapes_action(self, timing: Union[Tuple[float, float], Tuple[float, bool]], use_rel_time: bool, src_action_name: str, target_action_name: str) -> None:
         """Resample the given source action into a new action with the given target name.

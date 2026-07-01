@@ -39,14 +39,15 @@ class MMSLine:
     for the inflection of the corresponding sign.
     """
     def __init__(self, store_index: Dict[str, int], line_data: List[Optional[str]], gloss_idx: int):
-        self.store_index = store_index  # Maps the column name to its index within the MMS row
-        self.line_data = line_data
-        self.name, self.datatype = self.find_datatype(line_data[0])
+        self.store_index = store_index  # Maps the column name to its index within the MMS row.
+        self.line_data = line_data  # The full row of the MMS in text format.
+        self.name, self.datatype = self.find_datatype(line_data[0])  # The gloss itsefl and its class/type (defauts to 'signs').
+        self.is_hold: bool  # Set to true if the gloss in this lione is <HODL>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
         self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
         self.path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
-        self.data = None  # Reference to the bpy.data containing the gloss animation data.
-        self.original_frame_range = None
-        self.resampled_frame_range = None
+        self.bpy_data = None  # Reference to the bpy.data containing the gloss animation data.
+        self.original_frame_range: Tuple[float, float] = None
+        self.resampled_frame_range: Tuple[float, float] = None
 
     def __getitem__(self, key):
         return self.line_data[self.store_index[key]]
@@ -59,11 +60,12 @@ class MMSLine:
 
     @staticmethod
     def find_datatype(name) -> Tuple[str, str]:
-        """Find the associated gloss type.
-        
-        The gloss database has different types. This information is essential
-        when access the animation from the gloss database.
+        """Handle the syntax <class>:<gloss>.
+         Returns the class and the gloss in two different strings.
+         If there is no ':', returns the default 'signs' class.
+         E.g.: 'gest:TJA' --> ('TJS', 'gest'); 'ABLAUF' --> ('ABLAUF', 'signs')
         """
+
         if ":" not in name:
             return name, "signs"
         split = name.split(":")
