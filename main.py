@@ -371,19 +371,37 @@ def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) 
 
     glue = Glue(
         mms=None,  # It won't be needed when rendering a single sentence
-        target_armature_obj_name=TARGET_ARMATURE_NAME,
-        target_action_name=TARGET_ACTION_NAME
+        target_armature_obj=bpy.data.objects[TARGET_ARMATURE_NAME],
+        target_mesh_obj=bpy.data.objects[TARGET_MESH_NAME],
+        target_action_name=TARGET_ACTION_NAME,
+        target_shapekeys_action_name=TARGET_SHAPEKEYS_ACTION_NAME
     )
 
     # Prepare the target animation curves, specifiyng the name of the source action
     # By manually specifying the source action, the mms is not needed.
-    source_action_name = "updated_Satz" + str(sentence_id)
-    glue.prepare_target_fcurves(source_action_name)
-    glue.append_action(target_action_name="final_action", source_action_name=source_action_name, start=1)
+    # source_action_name = 
+    reference_armature_action = bpy.data.actions["updated_Satz" + str(sentence_id)]
+    reference_shapekey_action = bpy.data.actions["blendshapes_Satz" + str(sentence_id)]
+
+    # Create the fcurves in the target actions
+    glue.prepare_target_actions(reference_action=reference_armature_action, reference_shapekeys_action=reference_shapekey_action)
+
+    # Copy the armature action
+    glue.append_action(
+        target_action=bpy.data.actions[TARGET_ACTION_NAME],
+        source_action=reference_armature_action,
+        start=1
+    )
+    # Copy the shapekeys action
+    glue.append_action(
+        target_action=bpy.data.actions[TARGET_SHAPEKEYS_ACTION_NAME],
+        source_action=reference_shapekey_action,
+        start=1
+    )
 
     post_bake(
-        armature_obj_name=glue.src_armature_obj_name,
-        action_name=glue.target_action_name,
+        armature_obj_name=glue.armature_obj.name,
+        action_name=glue.target_action.name,
         mp4_path=arguments.export_mp4,
         bvh_path=arguments.export_bvh,
         fbx_path=arguments.export_fbx,
