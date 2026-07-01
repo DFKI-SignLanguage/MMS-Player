@@ -42,8 +42,11 @@ class MMSLine:
         self.store_index = store_index  # Maps the column name to its index within the MMS row.
         self.line_data = line_data  # The full row of the MMS in text format.
         self.name, self.datatype = self.find_datatype(line_data[0])  # The gloss itsefl and its class/type (defauts to 'signs').
-        self.is_hold: bool  # Set to true if the gloss in this lione is <HODL>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
+        self.is_hold: bool = False # Set to true if the gloss in this lione is <HODL>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
         self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
+
+        # Filled later while scanning or loading the blend files
+
         self.path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
         self.bpy_data = None  # Reference to the bpy.data containing the gloss animation data.
         self.original_frame_range: Tuple[float, float] = None
@@ -233,27 +236,36 @@ class MMS:
         """
         
         pattern = r'<(.*?)>'
-        for num, gloss_id in enumerate(self.glosses):
-            gloss = self[gloss_id]
-            matches = re.findall(pattern, gloss.name)
-            if len(matches) > 0 and matches[0] == "HOLD":
-                # TODO -- Why for HOLD the path is set to the path of the previous gloss? And if the HOLD is the first sign in the MMS, it is OK to leave it empty?
-                self[gloss_id].path = self[self.glosses[num - 1]].path
-                self[gloss_id].datatype = "HOLD"
-            else:
-                motion_file = f"{gloss.name}.blend"
-                gloss_path = (
-                    Path(self.generated_root)
-                    .joinpath(gloss.datatype)
-                    .joinpath("trimmed")
-                    .joinpath(motion_file)
-                )
+        for num, idx_and_gloss in enumerate(self.glosses):
 
-                if not gloss_path.exists():
-                    raise Exception(f"Expected motion capture file '{gloss_path}' not present for {gloss.name}.")
+            mmsline = self[idx_and_gloss]
+
+            matches = re.findall(pattern, mmsline.name)
+            # TODO --  maybe move this block into the parsing logic.
+            if len(matches) > 0 and matches[0] == "HOLD":
+                print(num, "FOUND HOLD")
+                # TODO -- Why for HOLD the path is set to the path of the previous gloss? And if the HOLD is the first sign in the MMS, it is OK to leave it empty?
+                prev_line = self[self.glosses[num - 1]]
+                # Override some mmsline properties
+                mmsline.name = prev_line.name
+                mmsline.output_name = f"{idx_and_gloss[0]}_HOLD_" + prev_line.name  # {idx_and_gloss[1]}"
+                mmsline.is_hold = True
+
+                # self[idx_and_gloss].path = self[self.glosses[num - 1]].path
+                # self[idx_and_gloss].datatype = "HOLD"
+            motion_file = f"{mmsline.name}.blend"
+            gloss_path = (
+                Path(self.generated_root)
+                .joinpath(mmsline.datatype)
+                .joinpath("trimmed")
+                .joinpath(motion_file)
+            )
+
+            if not gloss_path.exists():
+                raise Exception(f"Expected motion capture file '{gloss_path}' not present for {mmsline.name}.")
 
             # Set the Path to the Blender scene.
-            self[gloss_id].path = gloss_path
+            mmsline.path = gloss_path
 
 
 class MMSParser:

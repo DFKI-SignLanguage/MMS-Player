@@ -97,25 +97,24 @@ class Glue:
 
 
     def perform_hold(self,
-                     target_animation: str,
-                     source_animation: str,
+                     target_action: bpy.types.Action,
+                     source_action: bpy.types.Action,
                      start: float,
                      end: float,
                      ) -> int:
 
-        logger.info(f"Performing HOLD Operation in range {start}-{end}. Last frame from {source_animation}.")
-
-        source_action = bpy.data.actions[source_animation]
-        target_action = bpy.data.actions[target_animation]
+        logger.info(f"Performing HOLD Operation in range {start}-{end}. Last frame from {source_action.name}.")
 
         for source_fcurve in source_action.fcurves:
             target_curve = target_action.fcurves.find(
                     source_fcurve.data_path, index=source_fcurve.array_index
                     )
+
             # Get the last keyframe points
             last_keyframe_idx = len(source_fcurve.keyframe_points) - 1
             last_keyframe_point = source_fcurve.keyframe_points[last_keyframe_idx]
-            # Insert the two keyframes at the specified positions
+
+            # Insert the two keyframes at the start and end positions
             target_curve.keyframe_points.insert(
                     frame=start,
                     value=last_keyframe_point.co[1],
@@ -206,14 +205,14 @@ class Glue:
 
             logger.info(f"Merging gloss {self.mms[gloss].output_name} in frames from {start} to {end}")
 
-            if self.mms[gloss].datatype == "HOLD":
+            if self.mms[gloss].is_hold:
                 # Should copy the animation here and update the
-                prev_gloss_index = gloss[0] - 1
-                prev_gloss_id = self.mms.glosses[prev_gloss_index]
+                #prev_gloss_index = gloss[0] - 1
+                #prev_gloss_id = self.mms.glosses[prev_gloss_index]
                 # end = self.mms[gloss].duration()[0]
                 end_frame = self.perform_hold(
-                        target_animation=self.target_action,
-                        source_animation=bpy.data.actions[f"inflected_{self.mms[prev_gloss_id].output_name}"],  # TODO -- somehow remove this hard-coded name
+                        target_action=self.target_action,
+                        source_action=bpy.data.actions[f"inflected_{self.mms[gloss].output_name}"],  # TODO -- somehow remove this hard-coded name
                         start=start,
                         end=end
                 )
