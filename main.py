@@ -453,7 +453,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         config_data = json.load(stream)
 
     ik_config = IKTargetConfig(config_data)
-    ik_target_list: List[IKTargetConfig] = []
+    ik_target_list: List[dict] = []
 
     if mms.inflections_availability_dict["torso"]:
         ik_target_list.append(ik_config.torso)
