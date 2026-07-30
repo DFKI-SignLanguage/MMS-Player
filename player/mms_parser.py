@@ -248,12 +248,12 @@ class MMS:
                 prev_line = self[self.glosses[num - 1]]
                 # Override some mmsline properties
                 mmsline.name = prev_line.name
+                mmsline.datatype = prev_line.datatype
                 mmsline.output_name = f"{idx_and_gloss[0]}_HOLD_" + prev_line.name  # {idx_and_gloss[1]}"
                 mmsline.is_hold = True
 
-                # self[idx_and_gloss].path = self[self.glosses[num - 1]].path
-                # self[idx_and_gloss].datatype = "HOLD"
             motion_file = f"{mmsline.name}.blend"
+
             gloss_path = (
                 Path(self.generated_root)
                 .joinpath(mmsline.datatype)
