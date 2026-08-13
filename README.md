@@ -64,7 +64,7 @@ The development of the MMS Player was part of Shailesh Mishra's master thesis at
 
 ## Prerequisites
 
-* Blender 4.2.2 LTS
+* Blender 4.2.23 LTS
   * (Blender 4.2.1 is known to have a problem with background video rendering)
 * A release of the AVASAG Corpus (the small, newer corpus, around 1.8gb size)
   * Get it here: [AVASAG corpus subset for MMS Player](https://cloud.dfki.de/owncloud/index.php/s/RtZ49jY8EF2SaBW)
@@ -73,10 +73,10 @@ Optionally, for debugging, install:
 
 * An Environment with Python 3.11
 * The bpy namespace
-  * `pip install bpy==4.2.0`
+  * `pip install bpy==4.2.23`
 
 
-### Installing Blender 4.2.2 LTS
+### Installing Blender 4.2.23 LTS
 
 * Download and extract the tar.xz, or tar.gz, or zip file from the blender website https://www.blender.org/download/lts/4-2/.
 
@@ -84,9 +84,9 @@ Take note of the path to the main executable file. For example:
 
 ```
 # On macOS
-/Applications/blender-4.2.2/Blender.app/Contents/MacOS/Blender
+/Applications/blender-4.2.23/Blender.app/Contents/MacOS/Blender
 # On Ubuntu
-/home/<user>/blender-4.2.2-linux64/blender
+/home/<user>/blender-4.2.23-linux64/blender
 ```
 
 
@@ -97,8 +97,8 @@ Basic usage is possible through the command line interface.
 First set important directories as env variables. For example, in a Terminal:
 
 ```bash
-export AVASAG_CORPUS_DIR=path/to/MyCorpusExtract
-export BLENDER_EXE=/Applications/blender-4.2.2/Blender.app/Contents/MacOS/Blender
+export DICTIONARY_DIR=path/to/DictionaryGeneration-deploy-260811
+export BLENDER_EXE=/Applications/blender-4.2.23/Blender.app/Contents/MacOS/Blender
 ```
 
 Now you should be ready to go!
@@ -107,7 +107,7 @@ To generate your first animation, execute the main file through the Blender embe
 
 ```bash
 $BLENDER_EXE --background --python main.py -- --source-mms-file MMS-examples/HandReloc-INDEX-X9.mms.csv \
-  --corpus-generated-directory $AVASAG_CORPUS_DIR/generated/ \
+  --corpus-generated-directory $DICTIONARY_DIR \
   --use-relative-time \
   --export-mp4 HandReloc-INDEX-X9.mp4
 ```
@@ -195,7 +195,28 @@ Example:
 
 If you use this work for academic purposes, please cite using at least one of the following entries (first in the list is preferred):
 
-Paper at the SLTAT 2023 workshop: https://ieeexplore.ieee.org/document/10193227. 
+Paper at the SLTAT 2025 workshop: <https://dl.acm.org/doi/10.1145/3742886.3756710>.
+Describing the latest developments of the MMS Player after its publication as open source software (GPL3).
+
+```
+@inproceedings{nunnari_mms_2025,
+	address = {Berlin Germany},
+	title = {{MMS} {Player}: an open source software for parametric data-driven animation of {Sign} {Language} avatars},
+	isbn = {979-8-4007-1996-7},
+	shorttitle = {{MMS} {Player}},
+	url = {https://dl.acm.org/doi/10.1145/3742886.3756710},
+	doi = {10.1145/3742886.3756710},
+	language = {en},
+	urldate = {2025-10-15},
+	booktitle = {Adjunct {Proceedings} of the 25th {ACM} {International} {Conference} on {Intelligent} {Virtual} {Agents}},
+	publisher = {ACM},
+	author = {Nunnari, Fabrizio and Mishra, Shailesh and Gebhard, Patrick},
+	month = sep,
+	year = {2025},
+	pages = {1--8},
+```
+
+Paper at the SLTAT 2023 workshop: <https://ieeexplore.ieee.org/document/10193227>. 
 Explaining the basic principles of the MMS and the inflection parameters.
 
 ```

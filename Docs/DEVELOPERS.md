@@ -181,7 +181,7 @@ python -m pip --version
 # This should output something like:
 > pip 23.0 (python 3.12)
 # now use pip to install bpy
-python3.11 -m pip install bpy==4.2.0
+python3.11 -m pip install bpy==4.2.23
 ```
 
 For the Web server:
