@@ -41,7 +41,11 @@ DEFAULT_BLEND_SCENE = "./assets/gloria-260813.blend"
 # In the template scene, the name of the armature object to be animated.
 TARGET_ARMATURE_NAME = "skeleton #5"
 # In the template scene, the name of the face to be animated
-TARGET_MESH_NAME = "gloria"
+TARGET_FACE_MESH_NAME = "gloria"
+# In the template scene, the name of the left eye mesh to be animated
+TARGET_LEYE_MESH_NAME = "Eye_L"
+# In the template scene, the name of the right eye mesh to be animated
+TARGET_REYE_MESH_NAME = "Eye_R"
 # In the template scene, the name of the camera object used for rendering.
 RENDER_CAMERA_NAME = "Camera"
 # The name of the final action containing the composed sign sequence
@@ -369,10 +373,22 @@ def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) 
     with bpy.data.libraries.load(str(sentence_path)) as (data_from, data_to):
         data_to.actions = data_from.actions
 
+    target_armature = bpy.data.objects[TARGET_ARMATURE_NAME]
+    target_face_mesh = bpy.data.objects[TARGET_FACE_MESH_NAME]
+    target_leye_mesh = bpy.data.objects[TARGET_LEYE_MESH_NAME]
+    target_reye_mesh = bpy.data.objects[TARGET_LEYE_MESH_NAME]
+
+    target_meshes = [target_face_mesh, target_leye_mesh, target_reye_mesh]
+
+    # Assertions for targets type
+    assert target_armature.type == 'ARMATURE'
+    for m in target_meshes:
+        assert m.type == 'MESH'
+
     glue = Glue(
         mms=None,  # It won't be needed when rendering a single sentence
-        target_armature_obj=bpy.data.objects[TARGET_ARMATURE_NAME],
-        target_mesh_obj=bpy.data.objects[TARGET_MESH_NAME],
+        target_armature_obj=target_armature,
+        target_mesh_objs=target_meshes,
         target_action_name=TARGET_ACTION_NAME,
         target_shapekeys_action_name=TARGET_SHAPEKEYS_ACTION_NAME
     )
@@ -590,8 +606,12 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # Checks
     assert TARGET_ARMATURE_NAME in bpy.context.scene.objects
     assert TARGET_ARMATURE_NAME in bpy.data.objects
-    assert TARGET_MESH_NAME in bpy.context.scene.objects
-    assert TARGET_MESH_NAME in bpy.data.objects
+    assert TARGET_FACE_MESH_NAME in bpy.context.scene.objects
+    assert TARGET_FACE_MESH_NAME in bpy.data.objects
+    assert TARGET_LEYE_MESH_NAME in bpy.context.scene.objects
+    assert TARGET_LEYE_MESH_NAME in bpy.data.objects
+    assert TARGET_REYE_MESH_NAME in bpy.context.scene.objects
+    assert TARGET_REYE_MESH_NAME in bpy.data.objects
 
     # Check the types and fix the bone names of the target armature
     initialize_target_armature()
@@ -601,15 +621,22 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     logger.info("Merging inflected glosses into the final timeline...")
 
     target_armature = bpy.data.objects[TARGET_ARMATURE_NAME]
-    target_mesh = bpy.data.objects[TARGET_MESH_NAME]
+    target_face_mesh = bpy.data.objects[TARGET_FACE_MESH_NAME]
+    target_leye_mesh = bpy.data.objects[TARGET_LEYE_MESH_NAME]
+    target_reye_mesh = bpy.data.objects[TARGET_LEYE_MESH_NAME]
 
+    target_meshes = [target_face_mesh, target_leye_mesh, target_reye_mesh]
+
+    # Assertions for targets type
     assert target_armature.type == 'ARMATURE'
-    assert target_mesh.type == 'MESH'
+    for m in target_meshes:
+        assert m.type == 'MESH'
 
     glue = Glue(
         mms=mms,
         target_armature_obj=target_armature,
-        target_mesh_obj=target_mesh,
+        #target_mesh_obj=target_mesh,
+        target_mesh_objs=target_meshes,
         target_action_name=TARGET_ACTION_NAME,
         target_shapekeys_action_name=TARGET_SHAPEKEYS_ACTION_NAME
     )

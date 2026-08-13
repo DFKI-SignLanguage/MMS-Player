@@ -21,7 +21,7 @@
 import bpy
 import json
 
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from .mms_parser import MMS
 from .logging import logger
 from . import bpy_utils
@@ -47,7 +47,7 @@ class Glue:
             self,
             mms: MMS,
             target_armature_obj: bpy.types.Object,
-            target_mesh_obj: bpy.types.Object,
+            target_mesh_objs: List[bpy.types.Object],
             target_action_name: str,
             target_shapekeys_action_name: str
     ):
@@ -61,11 +61,12 @@ class Glue:
 
         self.mms = mms
         self.armature_obj = target_armature_obj
-        self.mesh_obj = target_mesh_obj
         self.action_name = target_action_name
         self.shapekeys_action_name = target_shapekeys_action_name
 
-        self.shape_keys: bpy.types.Key = self.mesh_obj.data.shape_keys
+        # self.shape_keys: bpy.types.Key = self.mesh_obj.data.shape_keys
+        # From the lits of target MESH objects, compose the list of target ShapeKeys structure
+        self.shape_keys_list: List[bpy.types.Key] = [obj.data.shape_keys for obj in target_mesh_objs]
 
         self.target_action: Optional[bpy.types.Action] = None
         self.target_shapekeys_action: Optional[bpy.types.Action] = None
@@ -78,21 +79,31 @@ class Glue:
 
         #
         # Initialize the ARMATURE
-        self.armature_obj.animation_data_create()
         self.target_action = bpy.data.actions.new(self.action_name)
-        self.armature_obj.animation_data.action = self.target_action
 
         for source_fcurve in reference_action.fcurves:
             self.target_action.fcurves.new(source_fcurve.data_path, index=source_fcurve.array_index)
 
+        # Assign the action to the ARMATURE object
+        self.armature_obj.animation_data_create()
+        assert self.armature_obj.animation_data is not None
+        self.armature_obj.animation_data.action = self.target_action
+
+
         #
         # Initialize the MESH
-        self.shape_keys.animation_data_create()
         self.target_shapekeys_action = bpy.data.actions.new(self.shapekeys_action_name)
-        self.shape_keys.animation_data.action = self.target_shapekeys_action
 
         for source_fcurve in reference_shapekeys_action.fcurves:
             self.target_shapekeys_action.fcurves.new(source_fcurve.data_path, index=source_fcurve.array_index)
+
+        # Assign the shape key action to the MESH objects
+        # self.shape_keys.animation_data_create()
+        # self.shape_keys.animation_data.action = self.target_shapekeys_action
+        for sk in self.shape_keys_list:
+            sk.animation_data_create()
+            assert sk.animation_data is not None
+            sk.animation_data.action = self.target_shapekeys_action
 
 
     def perform_hold(self,
