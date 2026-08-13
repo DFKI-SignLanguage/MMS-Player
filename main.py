@@ -37,7 +37,7 @@ from typing import List, Optional
 
 
 # The template Blender scene containing the character, the light setup, and some default rendering parameters
-DEFAULT_BLEND_SCENE = "./assets/gloria-260624.blend"
+DEFAULT_BLEND_SCENE = "./assets/gloria-260813.blend"
 # In the template scene, the name of the armature object to be animated.
 TARGET_ARMATURE_NAME = "skeleton #5"
 # In the template scene, the name of the face to be animated
