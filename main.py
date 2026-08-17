@@ -167,8 +167,9 @@ def add_options(arg_parser: argparse.ArgumentParser):
         "--render-sentence",
         type=int,
         help="Render the video of a si ngle specified sentence (AVASAG project)." \
-        " Provide an integer number X as parameter, it will be converted in 'SatzX.blend" \
-        "The file will be searched in the corpus in the folder 'generated/sentences/trimmed/'.",
+        " Provide an integer number X as parameter, it will be converted in 'SatzX.blend." \
+        " The file will be searched in the dictionary folder as 'sentences/trimmed/SatzX.blend'." \
+        " Parameter --source-mms-file will be ignored.",
         required=False
     )
 
