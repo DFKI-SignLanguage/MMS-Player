@@ -12,6 +12,7 @@ venv
 
 # For all of the automatically generated videos
 MMS-Examples/*.mp4
+MMS-Examples/*.gif
 
 # MacOS stuff
 .DS_Store
