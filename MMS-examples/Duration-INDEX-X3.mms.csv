@@ -1,0 +1,7 @@
+maingloss,framestart,frameend,duration,transition,domgloss,ndomgloss
+gest:PAUSENPOSITION,0,0,100.00%,0,,
+INDEX,0,0,100%,1,,
+INDEX,0,0,300%,1,,
+INDEX,0,0,30%,1.5,,
+<HOLD>,0,0,1.0,0,,
+gest:PAUSENPOSITION,0,0,100.00%,1,,

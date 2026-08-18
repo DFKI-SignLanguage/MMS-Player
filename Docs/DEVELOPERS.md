@@ -100,9 +100,9 @@ In addition, there are binary requirements:
 
 ```
 assets/                         - binary files needed for the final blender scene
-  avasag_avatar_casual.glb      - is our target character
+  avasag_avatar_casual.glb      - is our target character, currently called Gloria.
   controller_config.json        - described what inflection strategy must be used for each target bone
-  defaults.blend                - default blender scene, containing an imported version of the GLB. It contains some default rendering values and lights, and the timeline will be filled by the MMS animation.
+  gloria-YYMMDD.blend           - default blender scene, containing an imported version of the GLB. It contains some default rendering values and lights. Its timeline will be filled by the MMS animation.
   ignorelist.json               - list of bones that must be deleted after loading an armature
 ```
 
@@ -181,7 +181,7 @@ python -m pip --version
 # This should output something like:
 > pip 23.0 (python 3.12)
 # now use pip to install bpy
-python3.11 -m pip install bpy==4.2.0
+python3.11 -m pip install bpy==4.2.23
 ```
 
 For the Web server:

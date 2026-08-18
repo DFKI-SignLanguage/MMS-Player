@@ -38,15 +38,19 @@ class MMSLine:
     be inflected, the class functions to store and retrieve the data required
     for the inflection of the corresponding sign.
     """
-    def __init__(self, store_index: Dict[str, int], line_data: list, gloss_idx: int):
-        self.store_index = store_index  # Maps the column name to its index within the MMS row
-        self.line_data = line_data
-        self.name, self.datatype = self.find_datatype(line_data[0])
+    def __init__(self, store_index: Dict[str, int], line_data: List[Optional[str]], gloss_idx: int):
+        self.store_index = store_index  # Maps the column name to its index within the MMS row.
+        self.line_data = line_data  # The full row of the MMS in text format.
+        self.name, self.datatype = self.find_datatype(line_data[0])  # The gloss itsefl and its class/type (defauts to 'signs').
+        self.is_hold: bool = False # Set to true if the gloss in this lione is <HODL>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
         self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
-        self.path = Path("/none")
-        self.data = None
-        self.original_frame_range = None
-        self.resampled_frame_range = None
+
+        # Filled later while scanning or loading the blend files
+
+        self.path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
+        self.bpy_data = None  # Reference to the bpy.data containing the gloss animation data.
+        self.original_frame_range: Tuple[float, float] = None
+        self.resampled_frame_range: Tuple[float, float] = None
 
     def __getitem__(self, key):
         return self.line_data[self.store_index[key]]
@@ -59,11 +63,12 @@ class MMSLine:
 
     @staticmethod
     def find_datatype(name) -> Tuple[str, str]:
-        """Find the associated gloss type.
-        
-        The gloss database has different types. This information is essential
-        when access the animation from the gloss database.
+        """Handle the syntax <class>:<gloss>.
+         Returns the class and the gloss in two different strings.
+         If there is no ':', returns the default 'signs' class.
+         E.g.: 'gest:TJA' --> ('TJS', 'gest'); 'ABLAUF' --> ('ABLAUF', 'signs')
         """
+
         if ":" not in name:
             return name, "signs"
         split = name.split(":")
@@ -79,6 +84,10 @@ class MMSLine:
 
         if not all((x, y, z)):
             return None
+        
+        assert x is not None
+        assert y is not None
+        assert z is not None
 
         return float(x), float(y), float(z)
 
@@ -203,7 +212,7 @@ class MMS:
     def __init__(self,
                  mms: Dict[Tuple[int, str], MMSLine],
                  generated_root: Path,
-                 inflections_availability: Dict[str, bool] = None):
+                 inflections_availability: Dict[str, bool]):
 
         self.mms: Dict[Tuple[int, str], MMSLine] = mms
         self.glosses: List[Tuple[int, str]] = list(mms.keys())
@@ -219,32 +228,44 @@ class MMS:
     def __repr__(self):
         return f"MMS({self.glosses})"
 
-    def find_mocap_data_files(self) -> None:
-        """Save the path information for each gloss in the MMS table.
-
-        As we assign the gloss path, we verify that the path exists.
+    def ensure_mocap_data_files(self) -> None:
         """
+        For each GLOSS in the MMS, as we compose the gloss path and we verify that the path exists.
+        Also, saves the path for each gloss file in the MMS table.
+        If the required file doesn't exist, an Exception is thrown.
+        """
+        
         pattern = r'<(.*?)>'
-        for num, gloss_id in enumerate(self.glosses):
-            gloss = self[gloss_id]
-            matches = re.findall(pattern, gloss.name)
+        for num, idx_and_gloss in enumerate(self.glosses):
+
+            mmsline = self[idx_and_gloss]
+
+            matches = re.findall(pattern, mmsline.name)
+            # TODO --  maybe move this block into the parsing logic.
             if len(matches) > 0 and matches[0] == "HOLD":
-                # TODO -- Why the path is set to the path of the previous gloss? And if the HOLD is the first sign in the MMS?
-                self[gloss_id].path = self[self.glosses[num - 1]].path
-                self[gloss_id].datatype = "HOLD"
-            else:
-                motion_file = f"{gloss.name}.blend"
-                gloss_path = (
-                    Path(self.generated_root)
-                    .joinpath(gloss.datatype)
-                    .joinpath("trimmed")
-                    .joinpath(motion_file)
-                )
+                print(num, "FOUND HOLD")
+                # TODO -- Why for HOLD the path is set to the path of the previous gloss? And if the HOLD is the first sign in the MMS, it is OK to leave it empty?
+                prev_line = self[self.glosses[num - 1]]
+                # Override some mmsline properties
+                mmsline.name = prev_line.name
+                mmsline.datatype = prev_line.datatype
+                mmsline.output_name = f"{idx_and_gloss[0]}_HOLD_" + prev_line.name  # {idx_and_gloss[1]}"
+                mmsline.is_hold = True
 
-                if not gloss_path.exists():
-                    raise Exception(f"Expected motion capture file '{gloss_path}' not present for {gloss.name}.")
+            motion_file = f"{mmsline.name}.blend"
 
-            self[gloss_id].path = gloss_path
+            gloss_path = (
+                Path(self.generated_root)
+                .joinpath(mmsline.datatype)
+                .joinpath("trimmed")
+                .joinpath(motion_file)
+            )
+
+            if not gloss_path.exists():
+                raise Exception(f"Expected motion capture file '{gloss_path}' not present for {mmsline.name}.")
+
+            # Set the Path to the Blender scene.
+            mmsline.path = gloss_path
 
 
 class MMSParser:

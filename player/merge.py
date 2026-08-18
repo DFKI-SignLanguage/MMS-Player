@@ -21,8 +21,7 @@
 import bpy
 import json
 
-from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from .mms_parser import MMS
 from .logging import logger
 from . import bpy_utils
@@ -47,85 +46,85 @@ class Glue:
     def __init__(
             self,
             mms: MMS,
-            ignore_bone_list: str,
-            src_blendfile: str,
-            action_name: str,
+            target_armature_obj: bpy.types.Object,
+            target_mesh_objs: List[bpy.types.Object],
+            target_action_name: str,
+            target_shapekeys_action_name: str
     ):
         """
-        :param mms: MMS table containing all relevant gloss information
-        :param src_blendfile: The scene that contains the character assets.
-        :param action_name: The name of new action to write the keyframes.
+        :param mms: MMS table containing all relevant gloss information.
+        :param target_armature_obj: The armature object that will be animated with the sequence of glosses (skeleton).
+        :param target_mesh_obj: The mesh object that will be animated with the sequence of glosses (mesh).
+        :param target_action_name: The name of new action to write the keyframes for the armature.
+        :param target_shapekeys_action_name: The name of new action to write the keyframes for the mesh animation.
         """
 
-        self.armature_obj_name = "skeleton #5"
-        self.action_name = action_name
-        self._duplicate_armature = "final_armature"
         self.mms = mms
-        # TODO -- this is unused! Forgotten or to be used in the future?
-        self.ignore_list = load_json(ignore_bone_list)
-        self.src_blendfile = src_blendfile
+        self.armature_obj = target_armature_obj
+        self.action_name = target_action_name
+        self.shapekeys_action_name = target_shapekeys_action_name
 
-        self.initialize_scene()
-        self.initialize_mesh()
+        # self.shape_keys: bpy.types.Key = self.mesh_obj.data.shape_keys
+        # From the lits of target MESH objects, compose the list of target ShapeKeys structure
+        self.shape_keys_list: List[bpy.types.Key] = [obj.data.shape_keys for obj in target_mesh_objs]
 
-    def initialize_scene(self):
-        """Blender scene initialization.
+        self.target_action: Optional[bpy.types.Action] = None
+        self.target_shapekeys_action: Optional[bpy.types.Action] = None
 
-        Copy the objects from original scene to the current context.
-        Link them into the current context to work on them.
+
+    def prepare_target_actions(self, reference_action: bpy.types.Action, reference_shapekeys_action: bpy.types.Action):
+        """Create new empty actions for the target armature and mesh objects.
+         Copies the list of fcurves from the given actions parameter.
         """
 
-        # Select all objects and delete them.
-        # Will leave only the armature data and the actions.
-        bpy.ops.object.select_all(action="SELECT")
-        bpy.ops.object.delete()
+        #
+        # Initialize the ARMATURE
+        self.target_action = bpy.data.actions.new(self.action_name)
 
-        # Load objects from the reference scene (nice character and lights)
-        with bpy.data.libraries.load(self.src_blendfile) as (data_from, data_to):
-            data_to.objects = data_from.objects
-            data_to.worlds = data_from.worlds
-        for obj in data_to.objects:
-            bpy.context.scene.collection.objects.link(obj)
-        bpy.context.scene.world = data_to.worlds[0]
+        for source_fcurve in reference_action.fcurves:
+            self.target_action.fcurves.new(source_fcurve.data_path, index=source_fcurve.array_index)
 
-    def initialize_mesh(self):
-        """Replace the name in the original mesh and create a new action.
+        # Assign the action to the ARMATURE object
+        self.armature_obj.animation_data_create()
+        assert self.armature_obj.animation_data is not None
+        self.armature_obj.animation_data.action = self.target_action
 
-        The original names are "Bone Pelvis". This name doesn't work for the
-        skeletal animations which are of format "Bone_Pelvis". Thus, we modify
-        the name of bones in the original mesh itself as it is one time operation.
-        """
 
-        mesh_armature = bpy.data.objects[self.armature_obj_name]
-        assert isinstance(mesh_armature, bpy.types.Object)
-        assert mesh_armature.type == "ARMATURE"
-        for bone in mesh_armature.pose.bones:
-            bone.name = bone.name.replace(" ", "_")
-            bone.rotation_mode = "ZXY"
-        mesh_armature.animation_data_create()
-        action_ref = bpy.data.actions.new(self.action_name)
-        mesh_armature.animation_data.action = action_ref
+        #
+        # Initialize the MESH
+        self.target_shapekeys_action = bpy.data.actions.new(self.shapekeys_action_name)
+
+        for source_fcurve in reference_shapekeys_action.fcurves:
+            self.target_shapekeys_action.fcurves.new(source_fcurve.data_path, index=source_fcurve.array_index)
+
+        # Assign the shape key action to the MESH objects
+        # self.shape_keys.animation_data_create()
+        # self.shape_keys.animation_data.action = self.target_shapekeys_action
+        for sk in self.shape_keys_list:
+            sk.animation_data_create()
+            assert sk.animation_data is not None
+            sk.animation_data.action = self.target_shapekeys_action
+
 
     def perform_hold(self,
-                     target_animation: str,
-                     source_animation: str,
+                     target_action: bpy.types.Action,
+                     source_action: bpy.types.Action,
                      start: float,
                      end: float,
                      ) -> int:
 
-        logger.info(f"Performing HOLD Operation in range {start}-{end}. Last frame from {source_animation}.")
-
-        source_action = bpy.data.actions[source_animation]
-        target_action = bpy.data.actions[target_animation]
+        logger.info(f"Performing HOLD Operation in range {start}-{end}. Last frame from {source_action.name}.")
 
         for source_fcurve in source_action.fcurves:
             target_curve = target_action.fcurves.find(
                     source_fcurve.data_path, index=source_fcurve.array_index
                     )
+
             # Get the last keyframe points
             last_keyframe_idx = len(source_fcurve.keyframe_points) - 1
             last_keyframe_point = source_fcurve.keyframe_points[last_keyframe_idx]
-            # Insert the two keyframes at the specified positions
+
+            # Insert the two keyframes at the start and end positions
             target_curve.keyframe_points.insert(
                     frame=start,
                     value=last_keyframe_point.co[1],
@@ -139,30 +138,31 @@ class Glue:
 
         return end
 
-    def combine_animation(self,
-                          target_animation: str,
-                          source_animation: str,
+    def append_action(self,
+                          target_action: bpy.types.Action,
+                          source_action: bpy.types.Action,
                           start: float) -> int:
-        """Combine the animations.
+        """Appends the data of a source action into a target action, starting from the given keyframe.
+        Returns the keyframe number of the last added frame (acccording to the size of the source action).
 
-        :param target_animation: The target animation action.
-        :param source_animation: The source animation action.
+        :param target_action_name: The target animation action.
+        :param source_action_name: The source animation action.
         :param start: The starting keyframe for the given animation action
         :param print_debug: Debug flag.
         """
-        source_action = bpy.data.actions[source_animation]
+
         action_start, action_end = source_action.frame_range
 
-        logger.info(f"Copying the keyframes from {source_animation} into {target_animation} at frame {start}")
+        logger.info(f"Copying the keyframes from {source_action.name} into {target_action.name} at frame {start}")
         logger.info(f"Source action range is {action_start}-{action_end}")
 
-        target_action = bpy.data.actions[target_animation]
 
-        # Iterate over all the animation curves
+        # Iterate over all the animation curves and copy the data
         for source_fcurve in source_action.fcurves:
             target_fcurve = target_action.fcurves.find(
                 source_fcurve.data_path, index=source_fcurve.array_index
             )
+            # print(f"After searching {source_fcurve.data_path} --> {target_fcurve}")
             # Copy, 1-by-1, all the keyframes
             for i, src_kfp in enumerate(source_fcurve.keyframe_points):
                 # Co-ordinates of the control points, starts from 0.
@@ -180,33 +180,8 @@ class Glue:
 
         return end
 
-    def create_new_fcurves(self, action_name: Optional[str] = None):
-        """Create a new action with empty fcurves in the target armature.
-         Copies the list of fcurves from the given action parameter.
-         If the action name is not specified (default), the list of fcurves is taken from the first inflected gloss.
-        """
-
-        armature_obj = bpy.data.objects[self.armature_obj_name]
-        bpy_utils.select_object(armature_obj)
-        bpy.context.object.name = armature_obj.name
-        bpy.context.object.data.name = armature_obj.name
-
-        # By default, use the action of the first gloss as reference
-        if action_name is None:
-            # Take one source action
-            gloss = self.mms[self.mms.glosses[0]]
-            action_name = f"inflected_{gloss.output_name}"
-
-        action = bpy.data.actions[action_name]
-        assert len(action.fcurves) != 0, f"The action {action_name} has no animation data"
-
-        for source_fcurve in action.fcurves:
-            armature_obj.animation_data.action.fcurves.new(
-                source_fcurve.data_path, index=source_fcurve.array_index
-            )
-
-    def merge_animation(self, use_rel_time: bool = False):
-        """Generate the timing data for individual gloss and merge into final track.
+    def realize_mms(self, use_rel_time: bool = False):
+        """Generate the timing data for individual glosses and merge them into final track.
         """
 
         # `last_gloss_end` holds the last frame number of the previous gloss.
@@ -226,7 +201,7 @@ class Glue:
                 if is_relative:
                     # In this case the duration is a fraction
                     assert 0 <= duration_or_prop
-                    # Compute the estimated duration according to the sampled
+                    # Compute the estimated duration according to the sign duration
                     fs, fe = self.mms[gloss].original_frame_range
                     dur_orig = (fe - fs)
                     duration_or_prop = dur_orig * duration_or_prop
@@ -240,22 +215,35 @@ class Glue:
 
             logger.info(f"Merging gloss {self.mms[gloss].output_name} in frames from {start} to {end}")
 
-            if self.mms[gloss].datatype == "HOLD":
+            if self.mms[gloss].is_hold:
                 # Should copy the animation here and update the
-                prev_gloss_index = gloss[0] - 1
-                prev_gloss_id = self.mms.glosses[prev_gloss_index]
+                #prev_gloss_index = gloss[0] - 1
+                #prev_gloss_id = self.mms.glosses[prev_gloss_index]
                 # end = self.mms[gloss].duration()[0]
                 end_frame = self.perform_hold(
-                        target_animation=self.action_name,
-                        source_animation=f"inflected_{self.mms[prev_gloss_id].output_name}",
-                        start=start,
-                        end=end
+                    target_action=self.target_action,
+                    source_action=bpy.data.actions[f"inflected_{self.mms[gloss].output_name}"],  # TODO -- somehow remove this hard-coded name
+                    start=start,
+                    end=end
                 )
+                end_frame = self.perform_hold(
+                    target_action=self.target_shapekeys_action,
+                    source_action=bpy.data.actions[f"resampled_blendshapes_{self.mms[gloss].output_name}"],  # TODO -- somehow remove this hard-coded name
+                    start=start,
+                    end=end
+                )
+
             else:
                 # Combine the animation and get the new end_frame
-                end_frame = self.combine_animation(
-                    target_animation=self.action_name,
-                    source_animation=f"inflected_{self.mms[gloss].output_name}",
+                end_frame = self.append_action(
+                    target_action=self.target_action,
+                    source_action=bpy.data.actions[f"inflected_{self.mms[gloss].output_name}"],  # TODO -- somehow remove this hard-coded name
+                    start=start
+                )
+
+                end_frame_shapekeys = self.append_action(
+                    target_action=self.target_shapekeys_action,
+                    source_action=bpy.data.actions[f"resampled_blendshapes_{self.mms[gloss].output_name}"],  # TODO -- somehow remove this hard-coded name
                     start=start
                 )
 

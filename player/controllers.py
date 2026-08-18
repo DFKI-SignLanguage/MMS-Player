@@ -44,7 +44,7 @@ from .mms_parser import MMSLine
 class Controller:
     """Responsible for orchestrating the IK controller."""
     def __init__(self,
-                 armature: bpy.types.Armature,
+                 armature: bpy.types.Object,
                  dictionary_armature_name: str,
                  ik_targets: List[targets.IKTargetConfig],
                  idx: int) -> None:
@@ -53,7 +53,7 @@ class Controller:
         @param armature: The source armature to be inflected.
         @param dictionary_armature_name: The name of the armature in dictionary.
         @param ik_targets: The list of IK targets responsible for controlling the bones.
-        @param idx: The identifier for the gloss.
+        @param idx: The progressive ID of the gloss in the sequence.
         """
         self.ik_targets = []
         # Dynamically compose the inflection targets that allow to perform the inflection.
@@ -72,9 +72,9 @@ class Controller:
             self.ik_targets.append(ik_target)
 
     def setup_chain(self,
-                    source_armature: bpy.types.Armature,
-                    target_armature: bpy.types.Armature,
-                    output_name: str,
+                    source_armature: bpy.types.Object,
+                    target_armature: bpy.types.Object,
+                    inflected_action_name: str,
                     mms_line: MMSLine,
                     without_inflection: bool = False):
         """Set up the armature skeleton for animation.
@@ -92,20 +92,36 @@ class Controller:
             2. Once we copy the animation, we update the animation of corresponding
             IK controllers.
         """
+
+        if source_armature.animation_data is None:
+            raise Exception("Animation data missing in source armature object")
+
+        if source_armature.animation_data.action is None:
+            raise Exception("Action missing in source armature object")
+
+        if target_armature.animation_data is None:
+            raise Exception("Animation data missing in target armature object")
+
+        if target_armature.animation_data.action is None:
+            raise Exception("Action missing in target armature object")
+
+
         source_action = source_armature.animation_data.action
         start = int(source_action.frame_range[0])
         end = int(source_action.frame_range[1])
         # print(f"Source animation {action.name} range: {start} to {end}")
         # 1. Copy skeletal animation from the main action track to the "inflected" one
+        # TODO --  check if it is really needed to switch to POSE mode and use operators at all.
         bpy_utils.select_object(target_armature)
         bpy.ops.object.mode_set(mode="POSE")
         bpy.ops.pose.select_all(action="SELECT")
-        new_action = bpy.data.actions.get(f"inflected_{output_name}")
+        new_action = bpy.data.actions.get(inflected_action_name)
         target_armature.animation_data.action = new_action
         bpy.context.object.animation_data.action = new_action
         bpy.context.scene.frame_set(start)
         # print("Baking the forward pose into the IK bones.")
-        # This handles the off-by-1 error!
+
+        # Copies the bone rotations from the source armature to the target, inflected one
         for frame in range(start, end + 1):
             bpy.context.scene.frame_set(frame)
             for bone in source_armature.pose.bones:
@@ -138,6 +154,7 @@ class Controller:
                 obj.ctrl.keyframe_insert("rotation_quaternion", frame=frame)
 
         bpy.ops.object.mode_set(mode="OBJECT")
+
         for bone in self.ik_targets:
             bone.add_constraints()
             if not without_inflection:
@@ -145,16 +162,17 @@ class Controller:
         # TODO: When without inflection, avoid the baking and copying animation.
         #       Instead use the original animation. (Priority: Low)
 
-    def execute(self, armature: bpy.types.Armature, mms_line: MMSLine):
-        """Inflect the IK targets and bake the animation.
+    def execute(self, armature_obj: bpy.types.Object, mms_line: MMSLine):
+        """Inflect the IK targets of a given MMSLine and bake the animation.
 
         @param armature: The target armature containing the IK targets.
         @param mms_line: The MMS table
         """
 
-        bpy_utils.select_object(armature)
+        bpy_utils.select_object(armature_obj)
         bpy.ops.object.mode_set(mode="POSE")
-        action = bpy.data.actions.get(f"inflected_{mms_line.output_name}")
+    
+        action = bpy.data.actions.get(f"inflected_{mms_line.output_name}")  # TODO -- try to get out of here this action name composition
         bpy.context.object.animation_data.action = action
         start = int(action.frame_range[0])
         stop = int(action.frame_range[1])

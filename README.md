@@ -1,22 +1,46 @@
-# MMS Player - procedural animation of Sign Language avatars
+# MMS Player - Procedural Animation of Sign Language Avatars
 
-This repository contains the implementation of an MMS realizer.
+
+The MMS Player is a sign language animation generator based on 3D avatars. It is able to read an MMS file and produce a SL animation in different formats (MP4, FBX, BVH, JSON animation data, blender scene).
+
 MMS stands for "Multimodal SignStream", and it is a machine-and-human-readable format to represent sign languages.
 
-This code, the MMS Player, is able to read an MMS file and produce a SL animation in different formats (MP4, FBX, BVH, JSON animation data, blender scene).
+The MMS format can be considered as "glosses on steroids": it is a sequence glosses  + timing information + inflections.
 
-<img src="Docs/Pics/MMS-Player-Diagram.png" width="100%" />
 
-For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md) and set of examples [MMS examples](MMS-examples/README.md).
+## Examples
 
-A video tutorial is available on YouTube.
+1. Timing. The MMS can declare a sequence of glosses (like INDEX) and the timing about their execution, transition, and holds.
 
-<a href="https://www.youtube.com/watch?v=MxiFsxXukZw" target="_blank" style="display: inline-block;" alt="MMS-Player Video Tutorial on YouTube">
-<img src="https://img.youtube.com/vi/MxiFsxXukZw/0.jpg" style="display: block; margin-left: auto; margin-right: auto; width: 33%; height: auto;"></a>
+   <img src="Docs/Videos/Duration-INDEX-X3.gif" width="33%" alt="Preview of the INDEX sign animated with different durations and transitions" /> [source MMS](MMS-examples/Duration-INDEX-X3.mms.csv)
+
+2. Inflection of hands position. Here, the sign INDEX is relocated procedurally from its original _citation form_ into anothr 8 versions.
+
+   <img src="Docs/Videos/HandReloc-INDEX-X9.gif" width="33%" alt="Preview of the INDEX sign with hands relocated into 8 versions" /> [source MMS](MMS-examples/HandReloc-INDEX-X9.mms.csv)
+
+3. Simultaneous inflection of hands and torso. Helps to more naturally refer to other locations in space and to implement role-taking.
+
+   <img src="Docs/Videos/TorsoRotAndReloc-RoleShiftExample-INDEX-X3.gif" width="33%" alt="Preview of the INDEX sign with simultaneous hands and torso inflection for role-taking" /> [source MMS](MMS-examples/TorsoRotAndReloc-RoleShiftExample-INDEX-X3.mms.csv)
+
+4. Stretching hands trajectories. Together with torso control, can trnsform the sign for NICHT (nothing) from its citation form into a "wishpered" or a more "screamed" versions.
+
+   <img src="Docs/Videos/WishperScreamExample-NICHT-X3.gif" width="33%" alt="Preview of the NICHT sign stretched from a whispered to a screamed version" /> [source MMS](MMS-examples/WishperScreamExample-NICHT-X3.mms.csv)
+
+5. Finger spelling. Just to show the in the dictionary we have some basics, like letters and numbers.
+
+   <img src="Docs/Videos/FingerAlphabet.gif" width="33%" alt="Preview of finger spelling animation" /> [source MMS](MMS-examples/FingerAlphabet.mms.csv)
+
+
+For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md) 
+
+## Architecture
 
 
 The implementation is based on the Python language, and it is meant to be executed through the [Blender 3D editor](http://www.blender.org).
 For more details on the implementation, please consult the [developers' docs](Docs/DEVELOPERS.md).
+
+<img src="Docs/Pics/MMS-Player-Diagram.png" width="100%" />
+
 
 This software is distributed under the [GPL 3 license](https://www.gnu.org/licenses/gpl-3.0.html).
 
@@ -29,16 +53,14 @@ At its current stage, it DOES NOT represent whatsoever an application ready for 
 
 This repository offers to the research community a baseline for further investigation, collaborations, and improvements in Sign Language synthesis.
 
-We are looking forward for international collaborations through several means:
+## Collaborators are welcome
 
-- International public research projects;
+We are looking forward for international research collaborations through several means:
+
+- International public research projects (e.g., HORIZON EU);
 - Applied research with industrial partners;
 - Applied research with public institutional bodies;
-- Master theses. Possible topics:
-  - Facial animation for intelligible sign language (Computer science: procedural animation, machine learning);
-  - Advanced interpolation techniques (Computer science: procedural animation, machine learning);
-  - Usability: GUI for code-free use (Computer science: web development);
-  - Improvement of aesthetics (Schools of art: 3D authoring; Computer graphics).
+- Master theses.
 
 Native signers pursuing a master in computer science or digital art are particularly welcome to collaborate.
 
@@ -46,15 +68,21 @@ Non-profit organizations for Deaf communities are particularly welcome to try th
 
 Universities and research centers are welcome to contact us for possible collaborations.
 
-If interested, please contact [Fabrizio Nunnari](https://github.com/fnunnari), or one of the other developers.
+If interested, please contact Dr. [Fabrizio Nunnari](https://github.com/fnunnari), or one of the other developers.
+
 
 ## Documentation
 
-In the following sections, this file explains already how to install and use the MMS Player.
+An overview video tutorial is available on YouTube.
+
+<a href="https://www.youtube.com/watch?v=MxiFsxXukZw" target="_blank" style="display: inline-block;" alt="MMS-Player Video Tutorial on YouTube">
+<img src="https://img.youtube.com/vi/MxiFsxXukZw/0.jpg" style="display: block; margin-left: auto; margin-right: auto; width: 33%; height: auto;"></a>
+
 
 Other documents:
 
 * The [MMS format](Docs/MMS.md) description: the input defining the glosses, their timing, and their inflections.
+* A set of [MMS examples](MMS-examples/README.md), showing the capabilities of the animation system.
 * The [Developer's docs](Docs/DEVELOPERS.md), for people interested in contributing to the code.
 
 The development of the MMS Player was part of Shailesh Mishra's master thesis at the German Research Center for Artificial Intelligence (DFKI).
@@ -62,52 +90,49 @@ The development of the MMS Player was part of Shailesh Mishra's master thesis at
   * Shailesh's thesis [Web pages presentation](https://shailesh-mishra.com/thesis/index.html)
   * Shailesh's thesis [video presentation](https://www.youtube.com/watch?v=20dmUm5x5O0)
 
-## Prerequisites
+## Usage
 
-* Blender 4.2.2 LTS
+### Prerequisites
+
+* Blender 4.2.23 LTS
   * (Blender 4.2.1 is known to have a problem with background video rendering)
-* A release of the AVASAG Corpus (the small, newer corpus, around 1.8gb size)
-  * Get it here: [AVASAG corpus subset for MMS Player](https://cloud.dfki.de/owncloud/index.php/s/RtZ49jY8EF2SaBW)
+  * Download and extract the tar.xz, or tar.gz, or zip file from the blender website https://www.blender.org/download/lts/4-2/.
+  * Take note of the path to the main executable file. For example:
+    ```
+      # On macOS
+      /Applications/blender-4.2.23/Blender.app/Contents/MacOS/Blender
+      # On Ubuntu
+      /home/<user>/blender-4.2.23-linux64/blender
+      ```
+
+* A release of the Dictionary of signs. DictionaryGeneration-deploy-YYMMDD.zip
+  * Get it here: [Dictionary for MMS Player](https://cloud.dfki.de/owncloud/index.php/s/RtZ49jY8EF2SaBW)
 
 Optionally, for debugging, install:
 
 * An Environment with Python 3.11
 * The bpy namespace
-  * `pip install bpy==4.2.0`
+  * `pip install bpy==4.2.23`
 
 
-### Installing Blender 4.2.2 LTS
-
-* Download and extract the tar.xz, or tar.gz, or zip file from the blender website https://www.blender.org/download/lts/4-2/.
-
-Take note of the path to the main executable file. For example:
-
-```
-# On macOS
-/Applications/blender-4.2.2/Blender.app/Contents/MacOS/Blender
-# On Ubuntu
-/home/<user>/blender-4.2.2-linux64/blender
-```
-
-
-## Usage
+### Command line invokation
 
 Basic usage is possible through the command line interface.
 
-First set important directories as env variables. For example, in a Terminal:
+First, set important directories as env variables. For example, in a Terminal:
 
 ```bash
-export AVASAG_CORPUS_DIR=path/to/MyCorpusExtract
-export BLENDER_EXE=/Applications/blender-4.2.2/Blender.app/Contents/MacOS/Blender
+export DICTIONARY_DIR=path/to/DictionaryGeneration-deploy-260811
+export BLENDER_EXE=/Applications/blender-4.2.23/Blender.app/Contents/MacOS/Blender
 ```
 
-Now you should be ready to go!
+Now you are ready to go!
 
-To generate your first animation, execute the main file through the Blender embedded Python interpreter. E.g.:
+Generate your first animation (it uses the Python interpreter embedded in Blender):
 
 ```bash
 $BLENDER_EXE --background --python main.py -- --source-mms-file MMS-examples/HandReloc-INDEX-X9.mms.csv \
-  --corpus-generated-directory $AVASAG_CORPUS_DIR/generated/ \
+  --corpus-generated-directory $DICTIONARY_DIR \
   --use-relative-time \
   --export-mp4 HandReloc-INDEX-X9.mp4
 ```
@@ -132,7 +157,7 @@ The Blender window will open, and you can explore the armature and its animation
 
 <img src="Docs/Pics/HandReloc-BlenderEditing.png" width="60%" />
 
-## Additional options
+### Additional options
 
 The script supports many options. Here a few explained.
 
@@ -195,7 +220,28 @@ Example:
 
 If you use this work for academic purposes, please cite using at least one of the following entries (first in the list is preferred):
 
-Paper at the SLTAT 2023 workshop: https://ieeexplore.ieee.org/document/10193227. 
+Paper at the SLTAT 2025 workshop: <https://dl.acm.org/doi/10.1145/3742886.3756710>.
+Describing the latest developments of the MMS Player after its publication as open source software (GPL3).
+
+```
+@inproceedings{nunnari_mms_2025,
+	address = {Berlin Germany},
+	title = {{MMS} {Player}: an open source software for parametric data-driven animation of {Sign} {Language} avatars},
+	isbn = {979-8-4007-1996-7},
+	shorttitle = {{MMS} {Player}},
+	url = {https://dl.acm.org/doi/10.1145/3742886.3756710},
+	doi = {10.1145/3742886.3756710},
+	language = {en},
+	urldate = {2025-10-15},
+	booktitle = {Adjunct {Proceedings} of the 25th {ACM} {International} {Conference} on {Intelligent} {Virtual} {Agents}},
+	publisher = {ACM},
+	author = {Nunnari, Fabrizio and Mishra, Shailesh and Gebhard, Patrick},
+	month = sep,
+	year = {2025},
+	pages = {1--8},
+```
+
+Paper at the SLTAT 2023 workshop: <https://ieeexplore.ieee.org/document/10193227>. 
 Explaining the basic principles of the MMS and the inflection parameters.
 
 ```
