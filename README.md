@@ -8,30 +8,27 @@ MMS stands for "Multimodal SignStream", and it is a machine-and-human-readable f
 The MMS format can be considered as "glosses on steroids": it is a sequence glosses  + timing information + inflections.
 
 
-
 ## Examples
 
-The player is able to "inflect" signs. Thus
-
-1. Timing. The MMS can declare a sequence of glosses (like INDEX) and the timing about their execution time and transition times.
+1. Timing. The MMS can declare a sequence of glosses (like INDEX) and the timing about their execution, transition, and holds.
 
    <img src="Docs/Videos/Duration-INDEX-X3.gif" width="33%" alt="Preview of the INDEX sign animated with different durations and transitions" /> [source MMS](MMS-examples/Duration-INDEX-X3.mms.csv)
 
 2. Inflection of hands position. Here, the sign INDEX is relocated procedurally from its original _citation form_ into anothr 8 versions.
 
-   <img src="MMS-examples/HandReloc-INDEX-X9.gif" width="33%" alt="Preview of the INDEX sign with hands relocated into 8 versions" /> [source MMS](MMS-examples/HandReloc-INDEX-X9.mms.csv)
+   <img src="Docs/Videos/HandReloc-INDEX-X9.gif" width="33%" alt="Preview of the INDEX sign with hands relocated into 8 versions" /> [source MMS](MMS-examples/HandReloc-INDEX-X9.mms.csv)
 
 3. Simultaneous inflection of hands and torso. Helps to more naturally refer to other locations in space and to implement role-taking.
 
-   <img src="MMS-examples/TorsoRotAndReloc-RoleShiftExample-INDEX-X3.gif" width="33%" alt="Preview of the INDEX sign with simultaneous hands and torso inflection for role-taking" /> [source MMS](MMS-examples/TorsoRotAndReloc-RoleShiftExample-INDEX-X3.mms.csv)
+   <img src="Docs/Videos/TorsoRotAndReloc-RoleShiftExample-INDEX-X3.gif" width="33%" alt="Preview of the INDEX sign with simultaneous hands and torso inflection for role-taking" /> [source MMS](MMS-examples/TorsoRotAndReloc-RoleShiftExample-INDEX-X3.mms.csv)
 
 4. Stretching hands trajectories. Together with torso control, can trnsform the sign for NICHT (nothing) from its citation form into a "wishpered" or a more "screamed" versions.
 
-   <img src="MMS-examples/WishperScreamExample-NICHT-X3.gif" width="33%" alt="Preview of the NICHT sign stretched from a whispered to a screamed version" /> [source MMS](MMS-examples/WishperScreamExample-NICHT-X3.mms.csv)
+   <img src="Docs/Videos/WishperScreamExample-NICHT-X3.gif" width="33%" alt="Preview of the NICHT sign stretched from a whispered to a screamed version" /> [source MMS](MMS-examples/WishperScreamExample-NICHT-X3.mms.csv)
 
 5. Finger spelling. Just to show the in the dictionary we have some basics, like letters and numbers.
 
-   <img src="MMS-examples/FingerAlphabet.gif" width="33%" alt="Preview of finger spelling animation" /> [source MMS](MMS-examples/FingerAlphabet.mms.csv)
+   <img src="Docs/Videos/FingerAlphabet.gif" width="33%" alt="Preview of finger spelling animation" /> [source MMS](MMS-examples/FingerAlphabet.mms.csv)
 
 
 For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md) 
