@@ -310,8 +310,13 @@ class MMSParser:
             # Convert empty values to None.
             gloss_line = [x if x != "" else None for x in gloss_line]
 
-            # Handle the glosses with dashes such as: R-E:1-5-9-7
-            if prefix != "signs" and "-" in name:
+            # Handle the glosses with dashes such as: fa:R-E or num:1-5-9-7
+            # Only "fa" (fingerspelling) and "num" (number spelling) glosses use dashes
+            # to separate multiple letters/digits to be split into individual signs.
+            # Other classes (e.g. "gest", "prod") may contain dashes as part of a single
+            # compound gloss name (e.g. "prod:FALLEN(-gestreckter-zeigefinger)") and must
+            # not be split.
+            if prefix in ("fa", "num") and "-" in name:
                 start = float(gloss_line[index_for_column["framestart"]])
                 end = float(gloss_line[index_for_column["frameend"]])
                 diff = end - start
