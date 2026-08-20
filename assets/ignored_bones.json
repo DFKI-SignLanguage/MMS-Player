@@ -1,4 +1,4 @@
-{"ignore_list": [
+[
     "Bone_Root",
     "Bone_R_Toe0",
     "Bone_L_Toe0",
@@ -34,5 +34,5 @@
     "facemuscle_cheek_l",
     "facemuscle_browr_m",
     "facemuscle_nosewing_r",
-    "facemuscle_nosewing_l"]
-}
+    "facemuscle_nosewing_l"
+]

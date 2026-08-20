@@ -35,7 +35,7 @@ from player.logging import logger
 from player.logging import enable_log_to_stdout
 from player import extract
 
-from typing import List, Optional
+from typing import List, Optional, Set
 
 
 # The template Blender scene containing the character, the light setup, and some default rendering parameters
@@ -55,9 +55,15 @@ TARGET_ACTION_NAME = "final_action"
 # The name of the final ShapeKeys action containing the composed sign sequence for the facial animation
 TARGET_SHAPEKEYS_ACTION_NAME = "final_shapekeys_action"
 
-# Path to the JSON file with the list of bones to ignore during animation procedures
-# BONES_IGNORE_LIST_PATH = "./assets/ignorelist.json"
+# Path to the JSON file with the list of IK chains to setup as inflectors
 CONFIG_PATH = MMS_PLAYER_ROOT_PATH / "assets" / "controller_config.json"
+ANIMATED_BONES_LIST_PATH = MMS_PLAYER_ROOT_PATH / "assets" / "animated_bones.json"
+
+if not ANIMATED_BONES_LIST_PATH.exists():
+    raise Exception(f"The animated bones list '{ANIMATED_BONES_LIST_PATH}' couldn't be located.")
+
+with open(ANIMATED_BONES_LIST_PATH, "r") as stream:
+    ANIMATED_BONE_LIST: List[str] = json.load(stream)
 
 
 def add_options(arg_parser: argparse.ArgumentParser):
@@ -98,6 +104,13 @@ def add_options(arg_parser: argparse.ArgumentParser):
         "--export-mp4",
         type=str,
         help="Render the animation and save it to the path specified.",
+        required=False,
+    )
+
+    arg_parser.add_argument(
+        "--export-anim-json",
+        type=str,
+        help="Export the animation data to our custom JSON format.",
         required=False,
     )
 
@@ -191,6 +204,7 @@ def post_bake(
         mp4_path: Optional[str] = None,
         bvh_path: Optional[str] = None,
         fbx_path: Optional[str] = None,
+        anim_json_path: Optional[str] = None,
         blend_path: Optional[str] = None,
         render_size_pct: int = 100,
 ):
@@ -305,6 +319,12 @@ def post_bake(
             bake_anim_use_all_bones=True,
         )  # Import with y-forward and z up
 
+    # Export the animation as custom JSON file
+    if anim_json_path:
+        from player.anim_exporter import export_animation
+        print(f"Exporting animatino to JSION file '{anim_json_path}' ...")
+        export_animation(armature_obj=armature, bones_list=ANIMATED_BONE_LIST, out_json_path=anim_json_path)
+
     bpy.context.scene.frame_set(1)
     armature.hide_set(True)
 
@@ -361,6 +381,14 @@ def initialize_target_armature():
     for bone in target_armature_obj.pose.bones:
         bone.name = bone.name.replace(" ", "_")
         bone.rotation_mode = "ZXY"
+
+    # Check that each of the expected bones to be animated is in the list of target_armature_obj.pose.bones
+    target_bone_names = {bone.name for bone in target_armature_obj.pose.bones}
+    missing_bone_names = [name for name in ANIMATED_BONE_LIST if name not in target_bone_names]
+    if missing_bone_names:
+        raise Exception(
+            f"The following bones listed in '{ANIMATED_BONES_LIST_PATH}' are missing from the target armature: {missing_bone_names}"
+        )
 
 
 def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) -> None:
@@ -438,6 +466,7 @@ def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) 
         mp4_path=arguments.export_mp4,
         bvh_path=arguments.export_bvh,
         fbx_path=arguments.export_fbx,
+        anim_json_path=arguments.export_anim_json,
         blend_path=arguments.export_blend,
         render_size_pct=arguments.render_size_pct,
         render_size_x=arguments.res_x,
@@ -692,6 +721,27 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # Put all the inflected glosses/actions into a final timeline
     glue.realize_mms(use_rel_time=arguments.use_relative_time)
 
+
+    # Check if the bones animated in the target_action_name also appear in the ANIMATED_BONES_LIST_PATH.
+    # Emit a warning if there are bones that are animated but not listed in ANIMATED_BONES_LIST_PATH. Include the list of non expected bones.
+    assert glue.target_action is not None
+    target_action = glue.target_action
+
+    animated_bone_names = {
+        fcurve.data_path.split('"')[1]
+        for fcurve in target_action.fcurves
+        if fcurve.data_path.startswith('pose.bones["')
+    }
+
+    animated_bone_set = set(ANIMATED_BONE_LIST)
+    unexpected_animated_bone_names = animated_bone_names - animated_bone_set
+    if unexpected_animated_bone_names:
+        logger.warning(
+            f"The following bones are animated in '{target_action.name}' but are not listed in "
+            f"'{ANIMATED_BONES_LIST_PATH}': {sorted(unexpected_animated_bone_names)}"
+        )
+
+
     # Finalize the scene and export as MP4, BVH, FBX, or binary blender scene
     post_bake(
         armature_obj_name=glue.armature_obj.name,
@@ -699,6 +749,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         mp4_path=arguments.export_mp4,
         bvh_path=arguments.export_bvh,
         fbx_path=arguments.export_fbx,
+        anim_json_path=arguments.export_anim_json,
         blend_path=arguments.export_blend,
         render_size_pct=arguments.render_size_pct,
         render_size_x=arguments.res_x,
