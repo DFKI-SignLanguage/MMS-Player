@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+- Important fix to support GLOSSES with a dash (-) in their name.
+- main.py can now be invoked also from another directory: `player` module and `assets` are searched locally.
+
 ## [0.2.0] - 2025-08-18
 
 - Updated backend Gloria avatar with ARKit-compatible blendshapes.

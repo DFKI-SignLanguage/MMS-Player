@@ -20,8 +20,10 @@ import sys
 import bpy
 from pathlib import Path
 
-# TODO -- this is needed to find the local module (player) when invoked through Blender. Try to find a better solution.
-sys.path.append("./")
+# Needed to find the local module (player) when invoked through Blender, regardless of the current working directory.
+MMS_PLAYER_ROOT_PATH = Path(__file__).resolve().parent
+sys.path.append(str(MMS_PLAYER_ROOT_PATH))
+
 
 from player.mms_parser import MMSParser
 from player.ArmatureUtils import ArmatureOperator
@@ -37,7 +39,7 @@ from typing import List, Optional
 
 
 # The template Blender scene containing the character, the light setup, and some default rendering parameters
-DEFAULT_BLEND_SCENE = "./assets/gloria-260813.blend"
+DEFAULT_BLEND_SCENE_PATH = MMS_PLAYER_ROOT_PATH / "assets" / "gloria-260813.blend"
 # In the template scene, the name of the armature object to be animated.
 TARGET_ARMATURE_NAME = "skeleton #5"
 # In the template scene, the name of the face to be animated
@@ -55,6 +57,7 @@ TARGET_SHAPEKEYS_ACTION_NAME = "final_shapekeys_action"
 
 # Path to the JSON file with the list of bones to ignore during animation procedures
 # BONES_IGNORE_LIST_PATH = "./assets/ignorelist.json"
+CONFIG_PATH = MMS_PLAYER_ROOT_PATH / "assets" / "controller_config.json"
 
 
 def add_options(arg_parser: argparse.ArgumentParser):
@@ -316,8 +319,11 @@ def initialize_scene():
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete()
 
+    if not DEFAULT_BLEND_SCENE_PATH.exists():
+        raise Exception(f"Default Blender scene '{DEFAULT_BLEND_SCENE_PATH}' doesn't exist.")
+
     # Load objects from the reference scene (nice character and lights)
-    with bpy.data.libraries.load(DEFAULT_BLEND_SCENE) as (data_from, data_to):
+    with bpy.data.libraries.load(str(DEFAULT_BLEND_SCENE_PATH)) as (data_from, data_to):
         data_to.objects = data_from.objects
         data_to.worlds = data_from.worlds
     
@@ -396,7 +402,6 @@ def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) 
 
     # Prepare the target animation curves, specifiyng the name of the source action
     # By manually specifying the source action, the mms is not needed.
-    # source_action_name = 
     reference_armature_action = bpy.data.actions["updated_Satz" + str(sentence_id)]
     reference_shapekey_action = bpy.data.actions["blendshapes_Satz" + str(sentence_id)]
 
@@ -462,11 +467,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # The way items are added to the bone list defines the execution order for the
     # ik target.
 
-    config_path = Path("./assets/controller_config.json")
-    if not config_path.exists():
-        raise Exception(f"The config '{config_path}' couldn't be located.")
+    if not CONFIG_PATH.exists():
+        raise Exception(f"The config '{CONFIG_PATH}' couldn't be located.")
 
-    with open(config_path, "r") as stream:
+    with open(CONFIG_PATH, "r") as stream:
         config_data = json.load(stream)
 
     ik_config = IKTargetConfig(config_data)
@@ -524,7 +528,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         logger.info(f"Processing gloss {gloss} from file {mmsline.path}")
 
-        # TODO -- Path might not exist if the "gloss" is <HOLD>
+        # If the "gloss" is <HOLD>, the path comes from the previous gloss
         assert mmsline.path is not None
         if not mmsline.path.exists():
             raise Exception(f"File '{mms[gloss].path}' not found for gloss {gloss}.")
@@ -548,7 +552,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         inflected_armature = armature_operator.copy_armature()
 
         # Inflected animation is already prepared while copying the armature.
-        # TODO -- Postpone action creation.
+        # TODO -- Postpone the creation of the inflected action.
         assert f"inflected_{mmsline.output_name}" in bpy.data.actions
 
         if not arguments.ignore_gloss_duration:
@@ -636,7 +640,6 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     glue = Glue(
         mms=mms,
         target_armature_obj=target_armature,
-        #target_mesh_obj=target_mesh,
         target_mesh_objs=target_meshes,
         target_action_name=TARGET_ACTION_NAME,
         target_shapekeys_action_name=TARGET_SHAPEKEYS_ACTION_NAME
@@ -666,11 +669,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # but might have been renamed while loading the animation data from the other scenes.
     assert bpy.context.active_object.data.name.startswith(TARGET_ARMATURE_NAME), f"The name of the active object does not start with '{TARGET_ARMATURE_NAME}', but is '{bpy.context.active_object.data.name}'"
 
-    # Prepare action and fcurves for the facial animation
-    # Gather fcurves data from the first gloss
-    # fcurves_info = gather_fcurves_info(action=bpy.data.actions["resampled_blendshapes_" + mmsline.output_name])
-    # glue.prepare_target_action(new_action_name=TARGET_SHAPEKEYS_ACTION_NAME, curves_info=fcurves_info)
-
+    # Action for facial animation is there
     assert TARGET_SHAPEKEYS_ACTION_NAME in bpy.data.actions
 
     #
