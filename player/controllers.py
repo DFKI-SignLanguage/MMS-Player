@@ -46,7 +46,7 @@ class Controller:
     def __init__(self,
                  armature: bpy.types.Object,
                  dictionary_armature_name: str,
-                 ik_targets: List[targets.IKTargetConfig],
+                 target_configs: List[targets.IKTargetConfig],
                  idx: int) -> None:
         """Initialize Controller object.
 
@@ -55,19 +55,19 @@ class Controller:
         @param ik_targets: The list of IK targets responsible for controlling the bones.
         @param idx: The progressive ID of the gloss in the sequence.
         """
-        self.ik_targets = []
+        self.ik_targets: List[targets.GenericTarget] = []
         # Dynamically compose the inflection targets that allow to perform the inflection.
-        for target_data in ik_targets:
-            obj_class = getattr(targets, target_data.target)
+        for target_config in target_configs:
+            obj_class = getattr(targets, target_config.target)
             ik_target = obj_class(
                 idx,
                 armature=armature,
                 dictionary_name=dictionary_armature_name,
-                dominance=target_data.dominance,
-                target_bone=target_data.bone,
-                target_root=target_data.root,
-                inflection_type=target_data.itype,
-                constraints=target_data.constraints,
+                dominance=target_config.dominance,
+                target_bone=target_config.bone,
+                target_root=target_config.root,
+                inflection_type=target_config.itype,
+                constraints=target_config.constraints,
             )
             self.ik_targets.append(ik_target)
 

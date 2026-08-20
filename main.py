@@ -209,13 +209,18 @@ def post_bake(
 
     from player import bpy_utils
 
-    # Hide the bones
+    # Get reference to the armature
     armature = bpy.data.objects[armature_obj_name]
+    assert armature.animation_data is not None
+    assert armature.animation_data.action is not None
+
+    # Hide the bones
     armature.hide_set(True)
 
     #
     # Hide the face rig
     bpy.data.objects['FaceitRig'].hide_viewport = True
+
 
     #
     # Set the render range
@@ -250,6 +255,9 @@ def post_bake(
         if area.type == "VIEW_3D":
             view3d = area
             break
+    
+    if view3d is None:
+        raise Exception(f"Looks like there are not VIEW_3D areas open in the editor. At least one VIEW_3D area must be open in order to find a camera and render the output animation.")
 
     view3d.spaces[0].region_3d.view_perspective = "CAMERA"
 
@@ -257,7 +265,8 @@ def post_bake(
     bpy.context.scene.camera = bpy.data.objects[RENDER_CAMERA_NAME]
 
     # Cleanup the animation curves
-    action = bpy.data.actions.get(action_name)
+    action = bpy.data.actions[action_name]
+
     for fcurve in action.fcurves:
         for kfp in fcurve.keyframe_points:
             # Possible values: SINE, QUAD, CUBIC, QUART, QUINT
@@ -300,12 +309,12 @@ def post_bake(
     armature.hide_set(True)
 
     if blend_path:
-        print(f"Saving the blend file '{blend_path}'")
-        blend_path = Path(blend_path)
-        if not blend_path.is_absolute():
-            blend_path = blend_path.absolute()
+        abs_blend_path = Path(blend_path)
+        if not abs_blend_path.is_absolute():
+            abs_blend_path = abs_blend_path.absolute()
 
-        bpy.ops.wm.save_as_mainfile(filepath=str(blend_path))
+        print(f"Saving the blend file '{abs_blend_path}'")
+        bpy.ops.wm.save_as_mainfile(filepath=str(abs_blend_path))
 
 
 def initialize_scene():
@@ -347,6 +356,7 @@ def initialize_target_armature():
     target_armature_obj = bpy.data.objects[TARGET_ARMATURE_NAME]
     assert isinstance(target_armature_obj, bpy.types.Object)
     assert target_armature_obj.type == "ARMATURE"
+    assert target_armature_obj.pose is not None
 
     for bone in target_armature_obj.pose.bones:
         bone.name = bone.name.replace(" ", "_")
@@ -407,6 +417,7 @@ def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) 
 
     # Create the fcurves in the target actions
     glue.prepare_target_actions(reference_action=reference_armature_action, reference_shapekeys_action=reference_shapekey_action)
+    assert glue.target_action is not None
 
     # Copy the armature action
     glue.append_action(
@@ -474,45 +485,45 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         config_data = json.load(stream)
 
     ik_config = IKTargetConfig(config_data)
-    ik_target_list: List[dict] = []
+    ik_target_config_list: List[IKTargetConfig] = []
 
     if mms.inflections_availability_dict["torso"]:
-        ik_target_list.append(ik_config.torso)
+        ik_target_config_list.append(ik_config.torso)
         print("Added Torso Inflector.")
 
     if mms.inflections_availability_dict["head"]:
-        ik_target_list.append(ik_config.head)
+        ik_target_config_list.append(ik_config.head)
         print("Added Head Inflector.")
 
     if mms.inflections_availability_dict["shoulders"]:
-        ik_target_list.append(ik_config.shoulders.dom)
-        ik_target_list.append(ik_config.shoulders.ndom)
+        ik_target_config_list.append(ik_config.shoulders.dom)
+        ik_target_config_list.append(ik_config.shoulders.ndom)
         print("Added two Shoulder Inflectors")
 
     if mms.inflections_availability_dict["domhandreloc"]:
-        ik_target_list.append(ik_config.hands.dom.loc)
+        ik_target_config_list.append(ik_config.hands.dom.loc)
         print("Added dominant hand trajectory inflector.")
 
     if mms.inflections_availability_dict["domhandrot"]:
-        ik_target_list.append(ik_config.hands.dom.rot)
+        ik_target_config_list.append(ik_config.hands.dom.rot)
         print("Added dominant hand rotation inflector.")
 
     if mms.inflections_availability_dict["ndomhandreloc"]:
-        ik_target_list.append(ik_config.hands.ndom.loc)
+        ik_target_config_list.append(ik_config.hands.ndom.loc)
         print("Added non-dominant hand trajectory inflector.")
 
     if mms.inflections_availability_dict["ndomhandrot"]:
-        ik_target_list.append(ik_config.hands.ndom.rot)
+        ik_target_config_list.append(ik_config.hands.ndom.rot)
         print("Added non-dominant hand rotation inflector.")
 
     if arguments.without_inflection:
-        ik_target_list = []
+        ik_target_config_list.clear()
 
     # Log the mms file
     logger.info("==================================")
     logger.info("MMS File: %s", mms_file)
-    logger.info(f"List of IK target configurations ({len(ik_target_list)}):")
-    for ik_target in ik_target_list:
+    logger.info(f"List of IK target configurations ({len(ik_target_config_list)}):")
+    for ik_target in ik_target_config_list:
         logger.info("IK Target Config: %s", ik_target.dict)
     logger.info("==================================")
 
@@ -567,7 +578,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         assert "resampled_" + mmsline.output_name in bpy.data.actions
 
         # We add the extra controllers to ensure that we will be able to modify the animation down the pipeline.
-        inflector = Controller(inflected_armature, armature_operator.src_armature.name, ik_target_list, gloss[0])
+        inflector = Controller(inflected_armature, armature_operator.src_armature.name, ik_target_config_list, gloss[0])
         inflector.setup_chain(
             source_armature=armature_operator.src_armature,
             target_armature=inflected_armature,
@@ -657,6 +668,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     ref_shapekeys_action = bpy.data.actions["resampled_blendshapes_" + mmsline0.output_name]
 
     glue.prepare_target_actions(reference_action=ref_action, reference_shapekeys_action=ref_shapekeys_action)
+    assert glue.target_action is not None
+    assert glue.target_shapekeys_action is not None
 
     assert TARGET_ACTION_NAME in bpy.data.actions
     assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data is not None
@@ -664,6 +677,9 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data.action.name == TARGET_ACTION_NAME
 
     select_object(bpy.data.objects[TARGET_ARMATURE_NAME])
+    assert bpy.context.active_object is not None
+    assert bpy.context.active_object.data is not None
+
     assert bpy.context.active_object.name == TARGET_ARMATURE_NAME
     # Also the referenced Armature instance has by default the same name,
     # but might have been renamed while loading the animation data from the other scenes.
