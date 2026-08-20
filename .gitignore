@@ -6,6 +6,7 @@
 # For your local virtual environment
 venv
 .venv
+.vscode
 
 # To have local stuff outside git
 *.local.*
