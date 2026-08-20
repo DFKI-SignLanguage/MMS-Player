@@ -68,6 +68,7 @@ class Glue:
         # From the lits of target MESH objects, compose the list of target ShapeKeys structure
         self.shape_keys_list: List[bpy.types.Key] = [obj.data.shape_keys for obj in target_mesh_objs]
 
+        # Filled later during target actions preparation
         self.target_action: Optional[bpy.types.Action] = None
         self.target_shapekeys_action: Optional[bpy.types.Action] = None
 
