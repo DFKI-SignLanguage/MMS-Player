@@ -188,7 +188,7 @@ The framework provides a Flask HTTP server that can be used to remotely convert 
 
 To use the server, make sure you install the Flask package:
 
-    pip install Flask==3.0.3
+    pip install Flask==3.1.3
 
 and then you can run the server.
 

@@ -322,7 +322,7 @@ def post_bake(
     # Export the animation as custom JSON file
     if anim_json_path:
         from player.anim_exporter import export_animation
-        print(f"Exporting animatino to JSION file '{anim_json_path}' ...")
+        print(f"Exporting animation to JSON file '{anim_json_path}' ...")
         export_animation(armature_obj=armature, bones_list=ANIMATED_BONE_LIST, out_json_path=anim_json_path)
 
     bpy.context.scene.frame_set(1)
