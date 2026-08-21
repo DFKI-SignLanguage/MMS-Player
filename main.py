@@ -77,7 +77,7 @@ def add_options(arg_parser: argparse.ArgumentParser):
 
     arg_parser.add_argument("--source-mms-file", type=str, required=True)
 
-    arg_parser.add_argument("--corpus-generated-directory", type=str, required=True)
+    arg_parser.add_argument("--dictionary-dir", type=str, required=True)
 
     arg_parser.add_argument(
         "--export-bvh",
@@ -410,7 +410,7 @@ def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) 
 
     # Load the source animation data from the sentence file
     sentence_file = "Satz" + str(sentence_id) + ".blend"
-    sentence_path = Path(arguments.corpus_generated_directory).joinpath(
+    sentence_path = Path(arguments.dictionary_dir).joinpath(
         "sentences", "trimmed", sentence_file
     )
 
@@ -485,11 +485,11 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     4. Run the animation production pipeline.
     """
     mms_file = arguments.source_mms_file
-    generated_root = arguments.corpus_generated_directory
+    dictionary_root = arguments.dictionary_dir
     sentence_id = Path(mms_file).stem
 
     # Read the MMS from the given MMS file.
-    mms = MMSParser(mms_file, generated_root).parse()
+    mms = MMSParser(mms_file, dictionary_root).parse()
     # Compose the MoCap file names and check for their availability
     mms.ensure_mocap_data_files()
 
@@ -638,7 +638,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         extract.run(
             mms,
             sentence_id,
-            generated_root,
+            dictionary_root,
             arguments.extract_path,
             arguments.use_relative_time,
             arguments.without_fingers,

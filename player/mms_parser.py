@@ -270,9 +270,10 @@ class MMS:
 
 class MMSParser:
     """The parser for MMS data."""
-    def __init__(self, mms_file, generated_root):
-        self.mms_file = Path(mms_file)
-        self.generated_root = Path(generated_root)
+
+    def __init__(self, mms_file: str, dictionary_dir: str):
+        self._mms_file = Path(mms_file)
+        self._dictionary_root = Path(dictionary_dir)
 
     def parse(self):
         """Parse the mms file and return the MMS object.
@@ -281,7 +282,7 @@ class MMSParser:
         1. Read the CSV file consisting the MMS data.
         2.
         """
-        with open(self.mms_file, "r") as read_stream:
+        with open(self._mms_file, "r") as read_stream:
             reader = csv.reader(read_stream, delimiter=",")
             data = list(reader)
 
@@ -350,7 +351,7 @@ class MMSParser:
         # TODO -- actually useless if the times are given in relative mode.
         glosses = OrderedDict(sorted(glosses.items(), key=lambda x: x[1].timing()[0]))
 
-        return MMS(mms=glosses, generated_root=self.generated_root, inflections_availability=inflections_availability)
+        return MMS(mms=glosses, generated_root=self._dictionary_root, inflections_availability=inflections_availability)
 
 
 # TODO -- Convert this into a test unit
