@@ -26,9 +26,10 @@ The MMS format can be considered as "glosses on steroids": it is a sequence glos
 
    <img src="Docs/Videos/WishperScreamExample-NICHT-X3.gif" width="33%" alt="Preview of the NICHT sign stretched from a whispered to a screamed version" /> [source MMS](MMS-examples/WishperScreamExample-NICHT-X3.mms.csv)
 
-5. Finger spelling. Just to show the in the dictionary we have some basics, like letters and numbers.
+5. Finger spelling and some numbers. Just to show the in the dictionary we have some basics, like letters and numbers.
 
    <img src="Docs/Videos/FingerAlphabet.gif" width="33%" alt="Preview of finger spelling animation" /> [source MMS](MMS-examples/FingerAlphabet.mms.csv)
+   <img src="Docs/Videos/Numbers-0-19.gif" width="33%" alt="Preview of numbers between 0 and 19" /> [source MMS](MMS-examples/Numbers-0-19.mms.csv)
 
 
 For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md) 
