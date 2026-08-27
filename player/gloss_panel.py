@@ -16,14 +16,21 @@
 
 #
 # Optional, procedurally-generated debug overlay showing which gloss (MMS row) is currently
-# being played, e.g.: "(n-1) prevGLOSS --> (n) currentGLOSS --> (n+1) nextGLOSS", or, during a
-# transition between two glosses: "(n) lastGLOSS --> (n+1) nextGLOSS".
+# being played: "... (n-1) prevGLOSS --> (n) currentGLOSS --> (n+1) nextGLOSS ...", with the
+# active gloss highlighted, or, during a transition between two glosses, with the arrow between
+# them highlighted.
 #
-# The panel is a Text object parented to the render camera (so it always sits at the bottom of
-# the camera view, regardless of the camera's own position/animation) and its content is updated
-# on every frame via a `frame_change_pre` handler, since Blender doesn't support keyframing a
-# string property directly. This module doesn't touch the source .blend scene: every object it
-# needs is created procedurally at runtime.
+# The whole gloss sequence is set as a single, static line of text once, at setup time. On every
+# frame, the panel only: i) moves which character span is highlighted, and ii) smoothly scrolls
+# the text horizontally so the active gloss/arrow stays centered — holding still while a gloss is
+# playing, and panning to the next one during a transition. This avoids swapping the displayed
+# text at every gloss/transition boundary, which reads as an abrupt jump rather than a flow.
+#
+# The panel is parented to the render camera (so it always sits at the bottom of the camera view,
+# regardless of the camera's own position/animation). Since Blender doesn't support keyframing a
+# string property, both the highlight and the scroll position are driven by a `frame_change_pre`
+# handler. This module doesn't touch the source .blend scene: every object it needs is created
+# procedurally at runtime.
 #
 
 import bpy
@@ -43,8 +50,7 @@ GLOSS_PANEL_BACKDROP_NAME = "GlossPanel_Backdrop"
 _DEPTH_FACTOR = 3.0
 # How far down from the top of the frame the panel's anchor point sits (0 = top, 1 = bottom).
 _VERTICAL_ANCHOR_RATIO = 0.05
-# Fraction of the frustum width the text is sized to fill, assuming a line of ~64 characters.
-_WIDTH_MARGIN_RATIO = 0.9
+# The text is sized to fill the full frustum width, assuming a line of ~64 characters.
 _REFERENCE_CHAR_COUNT = 64
 _AVERAGE_CHAR_WIDTH_FACTOR = 0.55  # Rough average glyph width, relative to font size, for the default font.
 _LINE_HEIGHT_FACTOR = 1.3  # Approximate line height, relative to font size, for the default font.
@@ -60,25 +66,40 @@ _ARROW = ">>>>"
 _SEPARATOR = f" {_ARROW} "
 
 # Module-level state consumed by the frame handler (Blender's handler signature leaves no room
-# for extra arguments, so the timeline is stashed here by setup_gloss_panel()).
+# for extra arguments, so setup_gloss_panel() stashes everything it needs here).
 _timeline: List[GlossSegment] = []
+_part_spans: List[Tuple[int, int]] = []  # Per-gloss [start, end) character span within the static full body text.
+_arrow_spans: List[Tuple[int, int]] = []  # arrow_spans[i]: the arrow between gloss i and gloss i+1.
+_scroll_control_points: List[Tuple[float, float]] = []  # (frame, local_x) waypoints; see _build_scroll_control_points().
+_panel_anchor: Vector = Vector((0.0, 0.0, 0.0))  # Fixed camera-local placement of the panel's centerline.
 
 
 def setup_gloss_panel(camera_obj: bpy.types.Object, gloss_timeline: List[GlossSegment]) -> bpy.types.Object:
     """Create the gloss subtitle panel, parent it to `camera_obj`, and register the per-frame
-    handler that keeps its text in sync with the current playback frame.
+    handler that keeps its highlight and scroll position in sync with the current playback frame.
 
     :param camera_obj: The camera the panel should be attached to (bottom of its view).
     :param gloss_timeline: The realized (start_frame, end_frame) range of every gloss, as produced by `Glue.realize_mms()`.
     """
-    global _timeline
+    global _timeline, _part_spans, _arrow_spans, _scroll_control_points, _panel_anchor
+
     _timeline = sorted(gloss_timeline, key=lambda seg: seg.start_frame)
 
     _remove_existing_panel()
 
     backdrop_obj = _create_backdrop_object(GLOSS_PANEL_BACKDROP_NAME)
     text_obj = _create_text_object(GLOSS_PANEL_OBJECT_NAME)
-    _place_on_camera(text_obj, backdrop_obj, camera_obj)
+    _panel_anchor = _place_on_camera(text_obj, backdrop_obj, camera_obj)
+
+    full_body, _part_spans, _arrow_spans = _join_with_arrows([_format_gloss(s) for s in _timeline])
+    text_obj.data.body = full_body
+
+    # A flat average-glyph-width estimate drifts badly over a long line (e.g. real fonts render
+    # "I" several times narrower than "W"), so each gloss's actual on-screen center is measured
+    # directly off the text object's own geometry instead.
+    boundary_indices = [index for span in _part_spans for index in span]
+    local_x_by_index = _measure_local_x_positions(text_obj, full_body, boundary_indices)
+    _scroll_control_points = _build_scroll_control_points(_timeline, _part_spans, local_x_by_index)
 
     bpy.app.handlers.frame_change_pre.append(_gloss_panel_frame_handler)
 
@@ -110,7 +131,9 @@ def _create_text_object(name: str) -> bpy.types.Object:
 
     curve_data = bpy.data.curves.new(name=name, type="FONT")
     curve_data.body = ""
-    curve_data.align_x = "CENTER"
+    # 'LEFT' puts the object's local origin at the start of the text, so a character's local x
+    # position is simply proportional to its index — see _build_scroll_control_points().
+    curve_data.align_x = "LEFT"
     curve_data.align_y = "BOTTOM"
 
     curve_data.materials.append(_make_flat_emissive_material(f"{name}_Normal", (1.0, 1.0, 1.0)))
@@ -161,9 +184,11 @@ def _create_backdrop_object(name: str) -> bpy.types.Object:
     return backdrop_obj
 
 
-def _place_on_camera(text_obj: bpy.types.Object, backdrop_obj: bpy.types.Object, camera_obj: bpy.types.Object):
-    """Parent both objects to `camera_obj` and position/scale them to sit near the bottom edge of
+def _place_on_camera(text_obj: bpy.types.Object, backdrop_obj: bpy.types.Object, camera_obj: bpy.types.Object) -> Vector:
+    """Parent both objects to `camera_obj`, and position/scale them to sit near the bottom edge of
     the camera's view frustum, computed from the current scene's render resolution/aspect ratio.
+
+    :returns: the fixed camera-local point the text scrolls around, see `_build_scroll_control_points()`.
     """
 
     scene = bpy.context.scene
@@ -187,24 +212,27 @@ def _place_on_camera(text_obj: bpy.types.Object, backdrop_obj: bpy.types.Object,
     frame_width *= depth_factor
 
     text_obj.parent = camera_obj
-    text_obj.location = position
+    text_obj.location = position.copy()
     text_obj.rotation_euler = (0.0, 0.0, 0.0)
 
-    font_size = (frame_width * _WIDTH_MARGIN_RATIO) / (_REFERENCE_CHAR_COUNT * _AVERAGE_CHAR_WIDTH_FACTOR)
+    font_size = frame_width / (_REFERENCE_CHAR_COUNT * _AVERAGE_CHAR_WIDTH_FACTOR)
     text_obj.data.size = font_size
 
     line_height = font_size * _LINE_HEIGHT_FACTOR
     backdrop_obj.parent = camera_obj
-    # The text's origin is its bottom-center (align_y='BOTTOM'), so the backdrop is centered
-    # half a line above it; its z is pushed slightly further from the camera than the text, so
-    # the (opaque) text renders on top of the (semi-transparent) backdrop instead of z-fighting.
+    # The text's origin is its bottom-left (align_x='LEFT', align_y='BOTTOM'), but the backdrop
+    # stays centered on the panel's fixed anchor point, half a line above it; its z is pushed
+    # slightly further from the camera than the text, so the (opaque) text renders on top of the
+    # (semi-transparent) backdrop instead of z-fighting.
     backdrop_obj.location = Vector((position.x, position.y + line_height * 0.5, position.z * _BACKDROP_DEPTH_PUSH))
     backdrop_obj.rotation_euler = (0.0, 0.0, 0.0)
     backdrop_obj.scale = (
-        frame_width * _WIDTH_MARGIN_RATIO * _BACKDROP_WIDTH_PADDING,
+        frame_width * _BACKDROP_WIDTH_PADDING,
         line_height * _BACKDROP_HEIGHT_FACTOR,
         1.0,
     )
+
+    return position
 
 
 def _format_gloss(segment: GlossSegment) -> str:
@@ -215,6 +243,7 @@ def _join_with_arrows(parts: List[str]) -> Tuple[str, List[Tuple[int, int]], Lis
     """Join `parts` with " --> " separators.
 
     :returns: (body, part_spans, arrow_spans) — each span is a [start, end) character range within `body`.
+        arrow_spans[i] is the arrow between parts[i] and parts[i + 1].
     """
 
     body = ""
@@ -231,63 +260,122 @@ def _join_with_arrows(parts: List[str]) -> Tuple[str, List[Tuple[int, int]], Lis
     return body, part_spans, arrow_spans
 
 
-def _resolve_status(frame: float, timeline: List[GlossSegment]):
+def _measure_local_x_positions(text_obj: bpy.types.Object, full_body: str, char_indices: List[int]) -> dict:
+    """Measure the actual local-space x offset of each of `char_indices` within `full_body`, using
+    the real (assigned) font's glyph metrics rather than an average-width estimate.
+
+    Since the text's origin is at its start (align_x='LEFT'), the on-screen width of the prefix
+    `full_body[:index]` is exactly that character's local x offset. This temporarily truncates
+    `text_obj.data.body` to measure each prefix's rendered `dimensions.x`, then restores it — done
+    once at setup time, not per frame.
+    """
+
+    view_layer = bpy.context.view_layer
+    positions = {}
+    for index in sorted(set(char_indices)):
+        text_obj.data.body = full_body[:index]
+        view_layer.update()
+        positions[index] = text_obj.dimensions.x
+    text_obj.data.body = full_body
+    view_layer.update()
+    return positions
+
+
+def _build_scroll_control_points(
+        timeline: List[GlossSegment],
+        part_spans: List[Tuple[int, int]],
+        local_x_by_index: dict,
+) -> List[Tuple[float, float]]:
+    """Build the (frame, local_x) waypoints the panel's scroll position is interpolated over.
+
+    Two points per gloss — one at its start frame, one at its end frame, both at the same local_x
+    (its center, in the static full-body text, from `local_x_by_index`) — so linear interpolation
+    between consecutive points naturally holds still while a gloss is playing (both points share
+    the same x) and glides smoothly from one gloss's center to the next while transitioning (the
+    gap between one gloss's end point and the next one's start point).
+    """
+
+    control_points = []
+    for segment, span in zip(timeline, part_spans):
+        center_x = (local_x_by_index[span[0]] + local_x_by_index[span[1]]) / 2.0
+        control_points.append((segment.start_frame, center_x))
+        control_points.append((segment.end_frame, center_x))
+    return control_points
+
+
+def _interpolate(control_points: List[Tuple[float, float]], frame: float) -> float:
+    """Piecewise-linear interpolation of `control_points` (sorted by frame) at `frame`, clamped
+    to the first/last value outside their range."""
+
+    if not control_points:
+        return 0.0
+    if frame <= control_points[0][0]:
+        return control_points[0][1]
+    if frame >= control_points[-1][0]:
+        return control_points[-1][1]
+
+    for (frame_a, x_a), (frame_b, x_b) in zip(control_points, control_points[1:]):
+        if frame_a <= frame <= frame_b:
+            if frame_b == frame_a:
+                return x_b
+            t = (frame - frame_a) / (frame_b - frame_a)
+            return x_a + (x_b - x_a) * t
+
+    return control_points[-1][1]
+
+
+def _resolve_status(frame: float, timeline: List[GlossSegment]) -> Tuple[str, Optional[int]]:
     """Resolve the playback status at `frame`.
 
-    :returns: ("gloss", prev_or_None, current, next_or_None) when `frame` falls inside a gloss,
-        or ("transition", last_or_None, next_or_None) otherwise (including before the first gloss
-        or after the last one, where one of the two may be None).
+    :returns: ("gloss", i) when `frame` falls inside `timeline[i]`; ("transition", i) when it
+        falls between `timeline[i]` and `timeline[i + 1]`; ("before", None) / ("after", None) when
+        it falls before the first / after the last gloss; ("empty", None) for an empty timeline.
     """
+
+    if not timeline:
+        return "empty", None
 
     for i, segment in enumerate(timeline):
         if segment.start_frame <= frame <= segment.end_frame:
-            prev_segment = timeline[i - 1] if i > 0 else None
-            next_segment = timeline[i + 1] if i + 1 < len(timeline) else None
-            return "gloss", prev_segment, segment, next_segment
+            return "gloss", i
 
-    last_segment = None
-    next_segment = None
-    for segment in timeline:
-        if segment.end_frame < frame:
-            last_segment = segment
-        elif segment.start_frame > frame:
-            next_segment = segment
-            break
+    if frame < timeline[0].start_frame:
+        return "before", None
+    if frame > timeline[-1].end_frame:
+        return "after", None
 
-    return "transition", last_segment, next_segment
+    for i in range(len(timeline) - 1):
+        if timeline[i].end_frame < frame < timeline[i + 1].start_frame:
+            return "transition", i
+
+    # Shouldn't happen (every gap between consecutive glosses is covered above), but fail safe.
+    return "after", None
 
 
-def _compute_body_and_highlight(frame: float, timeline: List[GlossSegment]) -> Tuple[str, Optional[Tuple[int, int]]]:
-    """Compute the panel text and the [start, end) character span to highlight/bold, if any."""
+def _compute_highlight_span(
+        frame: float,
+        timeline: List[GlossSegment],
+        part_spans: List[Tuple[int, int]],
+        arrow_spans: List[Tuple[int, int]],
+) -> Optional[Tuple[int, int]]:
+    """The [start, end) character span (within the static full body text) to highlight/bold."""
 
-    if not timeline:
-        return "", None
-
-    status, *rest = _resolve_status(frame, timeline)
-
+    status, i = _resolve_status(frame, timeline)
     if status == "gloss":
-        prev_segment, current_segment, next_segment = rest
-        parts = [_format_gloss(s) for s in (prev_segment, current_segment, next_segment) if s is not None]
-        current_part_index = 1 if prev_segment is not None else 0
-        body, part_spans, _ = _join_with_arrows(parts)
-        return body, part_spans[current_part_index]
-
-    # "transition"
-    last_segment, next_segment = rest
-    if last_segment is not None and next_segment is not None:
-        body, _, arrow_spans = _join_with_arrows([_format_gloss(last_segment), _format_gloss(next_segment)])
-        return body, arrow_spans[0]
-    if last_segment is not None:
-        return _format_gloss(last_segment), None
-    if next_segment is not None:
-        return _format_gloss(next_segment), None
-    return "", None
+        assert i is not None
+        return part_spans[i]
+    if status == "transition":
+        assert i is not None
+        return arrow_spans[i]
+    if status == "before":
+        return part_spans[0] if part_spans else None
+    if status == "after":
+        return part_spans[-1] if part_spans else None
+    return None
 
 
-def _apply_body(text_obj: bpy.types.Object, body: str, highlight_span: Optional[Tuple[int, int]]):
-    curve_data = text_obj.data
-    curve_data.body = body
-    for i, char_format in enumerate(curve_data.body_format):
+def _apply_highlight(text_obj: bpy.types.Object, highlight_span: Optional[Tuple[int, int]]):
+    for i, char_format in enumerate(text_obj.data.body_format):
         is_highlighted = highlight_span is not None and highlight_span[0] <= i < highlight_span[1]
         char_format.use_bold = is_highlighted
         char_format.material_index = 1 if is_highlighted else 0
@@ -298,5 +386,10 @@ def _gloss_panel_frame_handler(scene, depsgraph):
     if GLOSS_PANEL_OBJECT_NAME not in bpy.data.objects:
         return
     text_obj = bpy.data.objects[GLOSS_PANEL_OBJECT_NAME]
-    body, highlight_span = _compute_body_and_highlight(scene.frame_current, _timeline)
-    _apply_body(text_obj, body, highlight_span)
+    frame = scene.frame_current
+
+    highlight_span = _compute_highlight_span(frame, _timeline, _part_spans, _arrow_spans)
+    _apply_highlight(text_obj, highlight_span)
+
+    target_local_x = _interpolate(_scroll_control_points, frame)
+    text_obj.location.x = _panel_anchor.x - target_local_x
