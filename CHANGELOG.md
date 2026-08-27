@@ -6,10 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-08-27
+
 - Important fix to support GLOSSES with a dash (-) in their name.
 - main.py can now be invoked also from another directory: `player` module and `assets` are searched locally.
 - Important option changed `--corpus-generated-directory` --> `--dictionary-dir`.
 - Added (optional) subtitles showing the currently played GLOSS or transition.
+- Restored basic REST server and added sample client.
 
 ## [0.2.0] - 2025-08-18
 
