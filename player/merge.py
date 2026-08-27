@@ -21,6 +21,7 @@
 import bpy
 import json
 
+from dataclasses import dataclass
 from typing import Optional, List
 from .mms_parser import MMS
 from .logging import logger
@@ -33,6 +34,18 @@ def load_json(fp):
         dump = json.load(stream)
         stream.close()
     return set(dump["ignore_list"])
+
+
+@dataclass
+class GlossSegment:
+    """The frame range, on the final realized timeline, occupied by a single MMS row (gloss).
+
+    Produced by `Glue.realize_mms()`. Used e.g. to drive the optional gloss subtitle panel.
+    """
+    index: int  # The MMS row number (n), starting from 0.
+    name: str  # The gloss text realized for this row.
+    start_frame: float
+    end_frame: float
 
 
 class Glue:
@@ -71,6 +84,9 @@ class Glue:
         # Filled later during target actions preparation
         self.target_action: Optional[bpy.types.Action] = None
         self.target_shapekeys_action: Optional[bpy.types.Action] = None
+
+        # Filled later by realize_mms(): the frame range of each gloss on the final timeline.
+        self.gloss_timeline: List[GlossSegment] = []
 
 
     def prepare_target_actions(self, reference_action: bpy.types.Action, reference_shapekeys_action: bpy.types.Action):
@@ -215,6 +231,14 @@ class Glue:
                 end += 1
 
             logger.info(f"Merging gloss {self.mms[gloss].output_name} in frames from {start} to {end}")
+
+            # For a <HOLD> row, `.name` has been overwritten (in ensure_mocap_data_files()) to the
+            # held gloss's name, so that the mocap file path resolves correctly. Report "<HOLD>"
+            # instead, so the panel reflects what's actually being realized for this row.
+            gloss_name = "<HOLD>" if self.mms[gloss].is_hold else self.mms[gloss].name
+            self.gloss_timeline.append(
+                GlossSegment(index=gloss[0], name=gloss_name, start_frame=start, end_frame=end)
+            )
 
             if self.mms[gloss].is_hold:
                 # Should copy the animation here and update the

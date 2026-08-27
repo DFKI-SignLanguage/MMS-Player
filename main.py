@@ -27,7 +27,7 @@ sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 
 from player.mms_parser import MMSParser
 from player.ArmatureUtils import ArmatureOperator
-from player.merge import Glue
+from player.merge import Glue, GlossSegment
 from player.controllers import Controller
 from player.targets import IKTargetConfig
 from player.bpy_utils import select_object
@@ -195,6 +195,14 @@ def add_options(arg_parser: argparse.ArgumentParser):
         help="If set, the log information will be also printed on the console. Handy for debugging purposes."
     )
 
+    arg_parser.add_argument(
+        "--gloss-panel",
+        action="store_true",
+        help="If set, adds a procedurally-generated panel at the bottom of the camera view, showing the "
+             "previous/current/next gloss being played (or the transition between two glosses). "
+             "Handy for debugging purposes.",
+    )
+
 
 def post_bake(
         armature_obj_name: str,
@@ -207,6 +215,8 @@ def post_bake(
         anim_json_path: Optional[str] = None,
         blend_path: Optional[str] = None,
         render_size_pct: int = 100,
+        gloss_panel: bool = False,
+        gloss_timeline: Optional[List[GlossSegment]] = None,
 ):
     """Perform rendering and export.
 
@@ -219,6 +229,8 @@ def post_bake(
     :param render_size_pct: Percentage of the final render.
     :param render_size_x: Width of final render.
     :param render_size_y: Height of final render.
+    :param gloss_panel: If True, adds the procedural gloss subtitle panel to the camera.
+    :param gloss_timeline: The realized frame range of every gloss, required when `gloss_panel` is True.
     """
 
     from player import bpy_utils
@@ -252,6 +264,14 @@ def post_bake(
     bpy.context.scene.render.resolution_x = render_size_x
     bpy.context.scene.render.resolution_y = render_size_y
     bpy.context.scene.render.resolution_percentage = render_size_pct
+
+    if gloss_panel:
+        from player.gloss_panel import setup_gloss_panel
+        if not gloss_timeline:
+            logger.warning("--gloss-panel was requested, but no gloss timeline is available (e.g. --render-sentence "
+                            "was used). The panel will be added but will stay empty.")
+        setup_gloss_panel(camera_obj=bpy.data.objects[RENDER_CAMERA_NAME], gloss_timeline=gloss_timeline or [])
+
     bpy.context.scene.render.fps = 60
     bpy.context.scene.render.image_settings.file_format = "FFMPEG"
     # bpy.context.scene.render.image_settings.file_format = 'PNG'
@@ -471,6 +491,8 @@ def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) 
         render_size_pct=arguments.render_size_pct,
         render_size_x=arguments.res_x,
         render_size_y=arguments.res_y,
+        gloss_panel=arguments.gloss_panel,
+        gloss_timeline=None,
     )
 
 
@@ -754,6 +776,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         render_size_pct=arguments.render_size_pct,
         render_size_x=arguments.res_x,
         render_size_y=arguments.res_y,
+        gloss_panel=arguments.gloss_panel,
+        gloss_timeline=glue.gloss_timeline,
     )
 
 

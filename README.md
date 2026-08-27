@@ -181,6 +181,8 @@ If you want to export to another 3D format, for example for further motion analy
     --export-bvh <skeleton_file.bvh>
     --export-fbx <model_file.fbx>
 
+For debugging purposes, `--gloss-panel` adds a procedurally-generated panel at the bottom of the camera view, showing the previous/current/next gloss being played (with the current one highlighted), or the transition between two glosses (with the arrow highlighted).
+
 
 ## Web server
 
