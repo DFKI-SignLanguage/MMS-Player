@@ -25,7 +25,7 @@ all: $(OUT_VIDEO_FILES) $(OUT_GIF_FILES)
 
 # Main rule to create a video from an MMS
 %.mp4: %.mms.csv
-	$(BLENDER_EXE) --background --python main.py -- --dictionary-dir "$(DICTIONARY_DIR)" --source-mms-file "$<" --use-relative-time --export-mp4 "$@" --render-size-pct 50 --log-to-console
+	$(BLENDER_EXE) --background --python main.py -- --dictionary-dir "$(DICTIONARY_DIR)" --source-mms-file "$<" --use-relative-time --export-mp4 "$@" --render-size-pct 50 --log-to-console --gloss-panel
 
 # Rule to create a half-resolution, 15fps animated GIF from a generated video
 %.gif: %.mp4
