@@ -28,8 +28,8 @@ from .mms_parser import MMSLine
 from . import bpy_utils
 
 
-class ArmatureOperator:
-    """ArmatureOperator is responsible for baking the inflected gloss animation.
+class ActionOperator:
+    """This class is responsible for baking the inflected gloss animation.
 
     It has to fulfill the following criteria:
     1. Load the gloss animation.

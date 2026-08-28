@@ -26,7 +26,7 @@ sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 
 
 from player.mms_parser import MMSParser
-from player.ArmatureUtils import ArmatureOperator
+from player.action_utils import ActionOperator
 from player.merge import Glue, GlossSegment
 from player.controllers import Controller
 from player.targets import IKTargetConfig
@@ -598,10 +598,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # TODO -- in case of HOLD, now we are essentially resampling the whole action of the previous gloss.
         #         We could optimize it with an ad-hoc branch that simply copies two times the last frame of the previous action.
 
-        # Pass it through the ArmatureOperator class and prepare the animation for further
+        # Pass it through the ActionOperator class and prepare the animation for further
         # processing. Since we want to have the same number of frames as the source
         # sentence, we are resampling the animation frames.
-        armature_operator = ArmatureOperator(mmsline)
+        armature_operator = ActionOperator(mmsline)
 
         armature_operator.load_animation()
 
