@@ -132,11 +132,13 @@ Now you are ready to go!
 Generate your first animation (it uses the Python interpreter embedded in Blender):
 
 ```bash
-$BLENDER_EXE --background --python main.py -- --source-mms-file MMS-examples/HandReloc-INDEX-X9.mms.csv \
+$BLENDER_EXE --background --python-exit-code 1 --python main.py -- --source-mms-file MMS-examples/HandReloc-INDEX-X9.mms.csv \
   --corpus-generated-directory $DICTIONARY_DIR \
   --use-relative-time \
   --export-mp4 HandReloc-INDEX-X9.mp4
 ```
+
+(The `--python-exit-code 1` option asks Blender to exit with code 1 when an error happens during the script execution.)
 
 An MP4 video file is generated with the several inflected versions of the INDEX sign.
 
