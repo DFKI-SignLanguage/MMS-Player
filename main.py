@@ -611,24 +611,32 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         assert "imported_" + mmsline.output_name in bpy.data.actions
         assert "imported_blendshapes_" + mmsline.output_name in bpy.data.actions
 
-        inflected_armature = armature_operator.copy_armature()
-
-        # Inflected animation is already prepared while copying the armature.
-        # TODO -- Postpone the creation of the inflected action.
-        assert f"inflected_{mmsline.output_name}" in bpy.data.actions
-
         if not arguments.ignore_gloss_duration:
+            src_action_name = "imported_" + mmsline.output_name
+            src_action = bpy.data.actions[src_action_name]
+            mmsline.original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
+
             if arguments.use_relative_time:
-                armature_operator.resample(timing=mmsline.duration(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=True)
+                resampled_action = armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=src_action_name, target_action_name="resampled_" + mmsline.output_name)
                 armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
             else:
-                armature_operator.resample(timing=mmsline.timing(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=False)
+                resampled_action = armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=src_action_name, target_action_name="resampled_" + mmsline.output_name)
                 armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+
+            armature_operator.src_armature.animation_data.action = resampled_action
+            mmsline.resampled_frame_range = resampled_action.frame_range[0], resampled_action.frame_range[1]
 
         # Here the "updated_" animation has been created
         assert "resampled_" + mmsline.output_name in bpy.data.actions
 
+
+
         # We add the extra controllers to ensure that we will be able to modify the animation down the pipeline.
+        # Inflected animation is already prepared while copying the armature.
+        inflected_armature = armature_operator.copy_armature()
+        # TODO -- Postpone the creation of the inflected action.
+        assert f"inflected_{mmsline.output_name}" in bpy.data.actions
+
         inflector = Controller(inflected_armature, armature_operator.src_armature.name, ik_target_config_list, gloss[0])
         inflector.setup_chain(
             source_armature=armature_operator.src_armature,

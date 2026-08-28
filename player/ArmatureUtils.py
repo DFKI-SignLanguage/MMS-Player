@@ -108,32 +108,6 @@ class ArmatureOperator:
 
         self.src_armature = armature_obj
 
-    def resample(self, timing: Union[Tuple[float, float], Tuple[float, bool]], target_action_name: str, use_rel_time: bool):
-        """Resample the armature's current action according to the timing information.
-        We assume that the animation has been loaded in the current armature's action.
-        This function will create a new action with the resampled duration and set it as current action.
-
-        :param timing: If use_rel_time is False, the timing is a tuple containing the MMS (framestart, frameend)
-         already converted in frame position.
-          If use_rel_time if True, the timing is a tuple (duration, pct),
-           where the duration can be expressed as absolute vale in frames, or as a percentage of the original duration.
-        :param use_rel_time: whether to use relative timing, or not.
-        """
-
-        source_armature = self.src_armature
-        src_action = source_armature.animation_data.action
-
-        self.mms_line.original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
-
-        sampled_action = ArmatureOperator.resample_action(
-            timing=timing, use_rel_time=use_rel_time,
-            src_action_name=src_action.name, target_action_name=target_action_name
-        )
-
-        source_armature.animation_data.action = sampled_action
-
-        self.mms_line.resampled_frame_range = sampled_action.frame_range[0], sampled_action.frame_range[1]
-
     @staticmethod
     def resample_action(timing: Union[Tuple[float, float], Tuple[float, bool]], use_rel_time: bool, src_action_name: str, target_action_name: str) -> bpy.types.Action:
         """Resample the given source action into a new action with the given target name.
