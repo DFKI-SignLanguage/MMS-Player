@@ -582,6 +582,22 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     for obj in bpy.data.objects:
         bpy.data.objects.remove(obj)
 
+    # Load the template scene containing the target character, to be animated later on.
+    initialize_scene()
+
+    # Checks
+    assert TARGET_ARMATURE_NAME in bpy.context.scene.objects
+    assert TARGET_ARMATURE_NAME in bpy.data.objects
+    assert TARGET_FACE_MESH_NAME in bpy.context.scene.objects
+    assert TARGET_FACE_MESH_NAME in bpy.data.objects
+    assert TARGET_LEYE_MESH_NAME in bpy.context.scene.objects
+    assert TARGET_LEYE_MESH_NAME in bpy.data.objects
+    assert TARGET_REYE_MESH_NAME in bpy.context.scene.objects
+    assert TARGET_REYE_MESH_NAME in bpy.data.objects
+
+    # Check the types and fix the bone names of the target armature
+    initialize_target_armature()
+
     # Iterate on MMS rows
     # For each row, create a new action with the inflected gloss animation
     for gloss in mms.glosses:
@@ -636,7 +652,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # TODO -- Postpone the creation of the inflected action.
         assert f"inflected_{mmsline.output_name}" in bpy.data.actions
 
-        inflector = Controller(inflected_armature, armature_operator.src_armature.name, ik_target_config_list, gloss[0])
+        inflector = Controller(armature=inflected_armature,
+                               dictionary_armature_name=armature_operator.src_armature.name,
+                               target_configs=ik_target_config_list,
+                               idx=gloss[0])
         inflector.setup_chain(
             source_armature=armature_operator.src_armature,
             target_armature=inflected_armature,
@@ -673,22 +692,6 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
             arguments.without_fingers,
         )
         return
-
-    # Load the template scene
-    initialize_scene()
-
-    # Checks
-    assert TARGET_ARMATURE_NAME in bpy.context.scene.objects
-    assert TARGET_ARMATURE_NAME in bpy.data.objects
-    assert TARGET_FACE_MESH_NAME in bpy.context.scene.objects
-    assert TARGET_FACE_MESH_NAME in bpy.data.objects
-    assert TARGET_LEYE_MESH_NAME in bpy.context.scene.objects
-    assert TARGET_LEYE_MESH_NAME in bpy.data.objects
-    assert TARGET_REYE_MESH_NAME in bpy.context.scene.objects
-    assert TARGET_REYE_MESH_NAME in bpy.data.objects
-
-    # Check the types and fix the bone names of the target armature
-    initialize_target_armature()
 
     #
     # Finally we merge individual signs to produce the final utterance of the full sentence.
