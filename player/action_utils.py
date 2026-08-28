@@ -27,6 +27,10 @@ from .logging import logger
 from .mms_parser import MMSLine
 from . import bpy_utils
 
+# Naming convention prefixes for the actions present in a source gloss blend file.
+BODY_ACTION_PREFIX = "updated_"
+FACE_ACTION_PREFIX = "blendshapes_"
+
 
 class ActionOperator:
     """This utility class has the methods to:
@@ -90,18 +94,32 @@ class ActionOperator:
 
         # Replacing the armature name with the one including the progress number
         armature_obj.name = self.mms_line.output_name
+
+        self.src_armature = armature_obj
+
+
+
+        #
+        # Find the main body action by its known naming convention, rather than relying on
+        # whatever action happens to already be assigned to the armature object.
+        body_action_name = BODY_ACTION_PREFIX + self.mms_line.name
+        if body_action_name not in bpy.data.actions:
+            raise Exception(f"Body animation '{body_action_name}' not found in loaded scene.")
+        body_action = bpy.data.actions[body_action_name]
+
         # Set the name of the imported action, avoiding duplicates and auto renaming in case of multiple glosses with the same name in the MMS
-        armature_obj.animation_data.action.name = "imported_" + self.mms_line.output_name
+        body_action.name = "imported_" + self.mms_line.output_name
+        armature_obj.animation_data.action = body_action
 
         logger.info(f"Initialized armature '{armature_obj.name}' with action '{armature_obj.animation_data.action.name}'")
 
         # Store direct reference to the armature/body action
-        self.imported_main_armature_action = armature_obj.animation_data.action
+        self.imported_main_armature_action = body_action
 
 
         #
         # Check for the presence of the Blendshape face animation
-        face_action_name = "blendshapes_" + self.mms_line.name
+        face_action_name = FACE_ACTION_PREFIX + self.mms_line.name
         if self.mms_line.name != "<HOLD>" and face_action_name not in bpy.data.actions:
             raise Exception(f"Face animation '{face_action_name}' not found in loaded scene.")
 
@@ -112,7 +130,6 @@ class ActionOperator:
         # Store direct reference to the shapekeys/face action
         self.imported_main_shapekeys_action = face_action
 
-        self.src_armature = armature_obj
 
     @staticmethod
     def resample_action(timing: Union[Tuple[float, float], Tuple[float, bool]], use_rel_time: bool, src_action_name: str, target_action_name: str) -> bpy.types.Action:
