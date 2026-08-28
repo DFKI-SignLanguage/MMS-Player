@@ -62,7 +62,6 @@ class ArmatureOperator:
             data_to.objects = data_from.objects
             data_to.armatures = data_from.armatures
             data_to.actions = data_from.actions
-            self.mms_line.bpy_data = data_to  # Store in the mms line a reference to the the bpy.data containing objetcs, aramtures and actions of the current context, loaded from the animation blend file.
 
         #
         # Find the armature and import it with the associated armature action
@@ -70,7 +69,7 @@ class ArmatureOperator:
 
         # Have to cycle through the objects, because they are not a dictionary, but a list (blender type bpy_lib !)
         armature_obj: Optional[bpy.types.Object] = None
-        for o in self.mms_line.bpy_data.objects:
+        for o in data_to.objects:
             if o.type == 'ARMATURE':
                 if self.mms_line.name == "<HOLD>":
                     logger.info(f"While loading the animation for <HOLD> gloss {self.mms_line.output_name}, using the first found armature '{o.name}'. We are not checking if the armature name is the same as in the previous gloss.")
