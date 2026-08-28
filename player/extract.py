@@ -15,6 +15,7 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import bpy
+import re
 from pathlib import Path
 import json
 
@@ -113,21 +114,21 @@ ACTIVE_BONES_WITHOUT_FINGERS = [
 # 8. Measure the error for the interpolated animation.
 
 
-def set_rotation_and_location(source_action, source_bone_name, source_frame, target_action, target_frame):
+# def set_rotation_and_location(source_action, source_bone_name, source_frame, target_action, target_frame):
 
-    rot_path_name = f'pose.bones["{source_bone_name}"].rotation_euler'
-    for i in range(3):
-        fcurve = source_action.fcurves.find(rot_path_name, index=i)
-        sampled_value = fcurve.evaluate(source_frame)
-        target_fcurve = target_action.fcurves.find(rot_path_name, index=i)
-        target_fcurve.keyframe_points.insert(target_frame, sampled_value)
+#     rot_path_name = f'pose.bones["{source_bone_name}"].rotation_euler'
+#     for i in range(3):
+#         fcurve = source_action.fcurves.find(rot_path_name, index=i)
+#         sampled_value = fcurve.evaluate(source_frame)
+#         target_fcurve = target_action.fcurves.find(rot_path_name, index=i)
+#         target_fcurve.keyframe_points.insert(target_frame, sampled_value)
 
-    loc_path_name = f'pose.bones["{source_bone_name}"].location'
-    for i in range(3):
-        fcurve = source_action.fcurves.find(loc_path_name, index=i)
-        sampled_value = fcurve.evaluate(source_frame)
-        target_fcurve = target_action.fcurves.find(loc_path_name, index=i)
-        target_fcurve.keyframe_points.insert(target_frame, sampled_value)
+#     loc_path_name = f'pose.bones["{source_bone_name}"].location'
+#     for i in range(3):
+#         fcurve = source_action.fcurves.find(loc_path_name, index=i)
+#         sampled_value = fcurve.evaluate(source_frame)
+#         target_fcurve = target_action.fcurves.find(loc_path_name, index=i)
+#         target_fcurve.keyframe_points.insert(target_frame, sampled_value)
 
 
 def extract_target(target_armature, gloss, start, end, active_bones):
@@ -167,13 +168,26 @@ def extract_target(target_armature, gloss, start, end, active_bones):
     return bone_data
 
 
-def create_f_curves(source_armature: bpy.types.Armature, sampled_action: bpy.types.Action):
-    """For each bone of the given armature,
+BONE_FCURVE_PATTERN = re.compile(r'pose\.bones\["(.+)"\]\.(?:rotation_euler|location)$')
+
+
+def get_animated_bone_names(source_action: bpy.types.Action) -> set:
+    """Returns the set of bone names that have rotation_euler/location f-curves in the given action."""
+
+    names = set()
+    for fcurve in source_action.fcurves:
+        match = BONE_FCURVE_PATTERN.match(fcurve.data_path)
+        if match:
+            names.add(match.group(1))
+    return names
+
+
+def create_f_curves(source_action: bpy.types.Action, sampled_action: bpy.types.Action):
+    """For each bone animated in the given source action,
      creates rotation_euler/ location f-curves on the given action (if not present, yet).
     Useful to prepare an action to receive full skeleton animation data."""
 
-    for bone in source_armature.pose.bones:
-        name = bone.name
+    for name in get_animated_bone_names(source_action):
         for i in range(3):
             path_name = f'pose.bones["{name}"].rotation_euler'
             fcurve = sampled_action.fcurves.find(path_name, index=i)
@@ -186,27 +200,27 @@ def create_f_curves(source_armature: bpy.types.Armature, sampled_action: bpy.typ
 
 
 # TODO --  seems to be unused. Keep it?
-def extract_source(source_armature, gloss, sample_size):
-    # Get a sample action, if it doesn't exist, create it
-    sampled_action = bpy.data.actions.get(f"sampled_{gloss.output_name}")
-    if sampled_action is None:
-        sampled_action = bpy.data.actions.new(name=f"sampled_{gloss.output_name}")
+# def extract_source(source_armature, gloss, sample_size):
+#     # Get a sample action, if it doesn't exist, create it
+#     sampled_action = bpy.data.actions.get(f"sampled_{gloss.output_name}")
+#     if sampled_action is None:
+#         sampled_action = bpy.data.actions.new(name=f"sampled_{gloss.output_name}")
 
-    # Create fcurves for each bone rotation
-    create_f_curves(source_armature=source_armature, sampled_action=sampled_action)
-    action = source_armature.animation_data.action
-    frame_start = int(action.frame_range[0])
-    frame_end = int(action.frame_range[1])
-    ratio = (frame_end - frame_start) / (sample_size - 1)
-    samples = [frame_start + x * ratio for x in range(sample_size)]
-    for frame_number, sample in enumerate(samples):
-        for bone in source_armature.pose.bones:
-            if "IK" in bone.name:
-                continue
-            set_rotation_and_location(source_action=action, source_bone_name=bone.name, source_frame=sample,
-                                      target_action=sampled_action, target_frame=frame_number + 1)
-    source_armature.animation_data.action = sampled_action
-    return extract_target(source_armature, gloss, 1, len(samples) + 1)
+#     # Create fcurves for each bone rotation
+#     action = source_armature.animation_data.action
+#     create_f_curves(source_action=action, sampled_action=sampled_action)
+#     frame_start = int(action.frame_range[0])
+#     frame_end = int(action.frame_range[1])
+#     ratio = (frame_end - frame_start) / (sample_size - 1)
+#     samples = [frame_start + x * ratio for x in range(sample_size)]
+#     for frame_number, sample in enumerate(samples):
+#         for bone in source_armature.pose.bones:
+#             if "IK" in bone.name:
+#                 continue
+#             set_rotation_and_location(source_action=action, source_bone_name=bone.name, source_frame=sample,
+#                                       target_action=sampled_action, target_frame=frame_number + 1)
+#     source_armature.animation_data.action = sampled_action
+#     return extract_target(source_armature, gloss, 1, len(samples) + 1)
 
 
 def extract_normal(mms, trim_start, skeleton, active_bones):

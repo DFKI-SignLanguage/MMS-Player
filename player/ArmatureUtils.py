@@ -25,7 +25,7 @@ from typing import Tuple, Union, Optional
 
 from .logging import logger
 from .mms_parser import MMSLine
-from . import bpy_utils, extract
+from . import bpy_utils
 
 
 class ArmatureOperator:
@@ -109,7 +109,7 @@ class ArmatureOperator:
         self.src_armature = armature_obj
 
     def resample(self, timing: Union[Tuple[float, float], Tuple[float, bool]], target_action_name: str, use_rel_time: bool):
-        """Resample the animation according to the timing information.
+        """Resample the armature's current action according to the timing information.
         We assume that the animation has been loaded in the current armature's action.
         This function will create a new action with the resampled duration and set it as current action.
 
@@ -120,63 +120,39 @@ class ArmatureOperator:
         :param use_rel_time: whether to use relative timing, or not.
         """
 
-        # 1. Initialize the armature and create a new action.
         source_armature = self.src_armature
+        src_action = source_armature.animation_data.action
 
-        self.mms_line.original_frame_range = source_armature.animation_data.action.frame_range[0], source_armature.animation_data.action.frame_range[1]
+        self.mms_line.original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
 
-        sampled_action = bpy.data.actions.new(name=target_action_name)
-
-        # Compute the resampling time
-        # TODO -- bring this out and let the duration of a resampling be calculated in the MMSLine class
-        if not use_rel_time:
-            start, end = timing
-            target_frame_count = end - start + 1
-        else:
-            duration_or_prop, is_proportion = timing
-            if is_proportion:
-                action = source_armature.animation_data.action
-                frame_start = int(action.frame_range[0])
-                frame_end = int(action.frame_range[1])
-                target_frame_count = math.ceil(duration_or_prop * (frame_end - frame_start) + 1)
-            else:
-                target_frame_count = duration_or_prop
-
-        # 2. Iterate through the bones and create a new f-curve if it doesn't exist.
-        extract.create_f_curves(source_armature=source_armature, sampled_action=sampled_action)
-
-        # 3. Resample the animation using sampling ratio and write the rotations.
-        action = source_armature.animation_data.action
-        frame_start = int(action.frame_range[0])
-        frame_end = int(action.frame_range[1])
-        ratio = (frame_end - frame_start) / (target_frame_count - 1)
-        samples = [frame_start + x * ratio for x in range(target_frame_count)]
-
-        for frame_number, sample in enumerate(samples):
-            for bone in source_armature.pose.bones:
-                extract.set_rotation_and_location(
-                    source_action=action, source_bone_name=bone.name, source_frame=sample,
-                    target_action=sampled_action, target_frame=frame_number + 1
-                )
+        sampled_action = ArmatureOperator.resample_action(
+            timing=timing, use_rel_time=use_rel_time,
+            src_action_name=src_action.name, target_action_name=target_action_name
+        )
 
         source_armature.animation_data.action = sampled_action
 
-        self.mms_line.resampled_frame_range = source_armature.animation_data.action.frame_range[0], source_armature.animation_data.action.frame_range[1]
+        self.mms_line.resampled_frame_range = sampled_action.frame_range[0], sampled_action.frame_range[1]
 
-    def resample_blendshapes_action(self, timing: Union[Tuple[float, float], Tuple[float, bool]], use_rel_time: bool, src_action_name: str, target_action_name: str) -> None:
+    @staticmethod
+    def resample_action(timing: Union[Tuple[float, float], Tuple[float, bool]], use_rel_time: bool, src_action_name: str, target_action_name: str) -> bpy.types.Action:
         """Resample the given source action into a new action with the given target name.
+        Operates purely on the action's f-curves, so it works regardless of what the action animates
+        (armature bones, shape keys, ...) and requires no armature or bone-name knowledge.
+
         :param timing:  If use_rel_time is False, the timing is a tuple containing the MMS (framestart, frameend)
          already converted in frame position.
           If use_rel_time if True, the timing is a tuple (duration, pct),
            where the duration can be expressed as absolute vale in frames, or as a percentage of the original duration.
         :param use_rel_time: whether to use relative timing, or not.
-        :param src_ation_name: The name of the existing action
+        :param src_action_name: The name of the existing action
         :param target_action_name: The name of the action to be created
+        :return: the newly created, resampled action.
         """
 
         src_action = bpy.data.actions[src_action_name]
 
-        # Compute target_frame_count — same logic as resample()
+        # Compute target_frame_count
         if not use_rel_time:
             start, end = timing
             target_frame_count = end - start + 1
@@ -209,6 +185,8 @@ class ArmatureOperator:
                 target_fcurve.keyframe_points.insert(frame_number + 1, sampled_value)
 
         assert target_action_name in bpy.data.actions
+
+        return sampled_action
 
 
     def copy_armature(self) -> bpy.types.Object:

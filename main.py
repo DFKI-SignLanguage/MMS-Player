@@ -385,7 +385,7 @@ def initialize_scene():
 
 
 def initialize_target_armature():
-    """Replace the bone names in the rtemplate armature and create a new action.
+    """Replace the bone names in the template armature and create a new action.
     The original names in the template scene are "Bone Pelvis". This name doesn't work for the
     skeletal animations which are of format "Bone_Pelvis". Thus, we modify
     the name of bones in the original mesh itself as it is one time operation.
@@ -620,10 +620,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         if not arguments.ignore_gloss_duration:
             if arguments.use_relative_time:
                 armature_operator.resample(timing=mmsline.duration(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=True)
-                armature_operator.resample_blendshapes_action(timing=mmsline.duration(), use_rel_time=True, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+                armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
             else:
                 armature_operator.resample(timing=mmsline.timing(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=False)
-                armature_operator.resample_blendshapes_action(timing=mmsline.timing(), use_rel_time=False, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+                armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
 
         # Here the "updated_" animation has been created
         assert "resampled_" + mmsline.output_name in bpy.data.actions
