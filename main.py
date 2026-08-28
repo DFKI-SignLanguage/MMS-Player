@@ -598,6 +598,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # Check the types and fix the bone names of the target armature
     initialize_target_armature()
 
+    # The target character's armature is duplicated per-gloss below, both to carry each gloss's own
+    # animation and to be inflected, so that no gloss blend needs to bring its own armature.
+    target_armature = bpy.data.objects[TARGET_ARMATURE_NAME]
+
     # Iterate on MMS rows
     # For each row, create a new action with the inflected gloss animation
     for gloss in mms.glosses:
@@ -621,8 +625,6 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         armature_operator.load_actions()
 
-        # The source armature has been loaded
-        assert armature_operator.src_armature is not None
         # Here the "imported_" actions have been created
         assert armature_operator.imported_main_armature_action is not None
         assert armature_operator.imported_main_shapekeys_action is not None
@@ -638,34 +640,29 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
                 resampled_action = armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
                 armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=armature_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
 
-            armature_operator.src_armature.animation_data.action = resampled_action
             mmsline.resampled_frame_range = resampled_action.frame_range[0], resampled_action.frame_range[1]
 
-        # Here the "updated_" animation has been created
+        # Here the "resampled_..." action has been created
         assert "resampled_" + mmsline.output_name in bpy.data.actions
 
-
-
-        # We add the extra controllers to ensure that we will be able to modify the animation down the pipeline.
-        # Inflected animation is already prepared while copying the armature.
-        inflected_armature = armature_operator.copy_armature()
-        # TODO -- Postpone the creation of the inflected action.
+        # Create an armature referencing the resampled action
+        resampled_armature = armature_operator.create_resampled_armature(target_armature)
+        # Create a new armature referencing a new action for the inflected sign
+        inflected_armature = armature_operator.create_inflected_armature(target_armature)
+        # Here an empty target "inflected_..." action has been created
         assert f"inflected_{mmsline.output_name}" in bpy.data.actions
 
         inflector = InflectionDirector(target_armature=inflected_armature,
-                               src_armature_name=armature_operator.src_armature.name,
+                               src_armature_name=resampled_armature.name,
                                target_configs=ik_target_config_list,
                                idx=gloss[0])
         inflector.setup_chain(
-            source_armature=armature_operator.src_armature,
+            source_armature=resampled_armature,
             target_armature=inflected_armature,
             inflected_action_name=f"inflected_{mmsline.output_name}",
             mms_line=mms[gloss],
             without_inflection=arguments.without_inflection,
         )
-
-        # Here the target "inflected_..." action has been already created
-        assert "inflected_" + mmsline.output_name in bpy.data.actions
 
         # Perform the inflection !!!
         if not arguments.without_inflection:
@@ -680,9 +677,9 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
             if ik_target.ctrl is not None:
                 bpy.data.objects.remove(ik_target.ctrl)
 
-        # The original (dictionary) armature: only its actions are needed downstream.
-        src_armature_data = armature_operator.src_armature.data
-        bpy.data.objects.remove(armature_operator.src_armature)
+        # The source armature: only its actions are needed downstream.
+        src_armature_data = resampled_armature.data
+        bpy.data.objects.remove(resampled_armature)
         bpy.data.armatures.remove(src_armature_data)
 
         # The inflected armature too, unless --extract still needs it by name afterwards.

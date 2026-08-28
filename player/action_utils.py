@@ -43,14 +43,13 @@ class ActionOperator:
     def __init__(self, mms_line: MMSLine) -> None:
 
         self.mms_line = mms_line
-        self.src_armature: Optional[bpy.types.Object] = None
 
         self.imported_main_armature_action: Optional[bpy.types.Action] = None
         self.imported_main_shapekeys_action: Optional[bpy.types.Action] = None
 
 
     def load_actions(self) -> None:
-        """Load the animation into the scene.
+        """Load the gloss's actions into the scene.
 
         This code copies the assets from the library and links it into the current blender context.
         """
@@ -63,45 +62,10 @@ class ActionOperator:
             raise Exception(f"Failed to find the library data '{str(blend_path)}'.")
 
         with bpy.data.libraries.load(str(blend_path)) as (data_from, data_to):
-            data_to.objects = data_from.objects
-            data_to.armatures = data_from.armatures
             data_to.actions = data_from.actions
 
         #
-        # Find the armature and import it with the associated armature action
-        #
-
-        # Have to cycle through the objects, because they are not a dictionary, but a list (blender type bpy_lib !)
-        armature_obj: Optional[bpy.types.Object] = None
-        for o in data_to.objects:
-            if o.type == 'ARMATURE':
-                if self.mms_line.name == "<HOLD>":
-                    logger.info(f"While loading the animation for <HOLD> gloss {self.mms_line.output_name}, using the first found armature '{o.name}'. We are not checking if the armature name is the same as in the previous gloss.")
-                    armature_obj = o
-                    break
-                # print(">>>", type(o), o.name, o.type)
-                elif o.name == self.mms_line.name:
-                    armature_obj = o
-                    break
-
-        if armature_obj is None:
-            raise Exception(f"ARMATURE Object with name {self.mms_line.name} not found while loading animation for {self.mms_line.output_name}")
-
-        assert armature_obj.type == 'ARMATURE', f"Expected type ARMATURE for {armature_obj.name}: found '{armature_obj.type}' instead"
-
-        # Link the source armature to the current context
-        bpy.context.scene.collection.objects.link(armature_obj)
-
-        # Replacing the armature name with the one including the progress number
-        armature_obj.name = self.mms_line.output_name
-
-        self.src_armature = armature_obj
-
-
-
-        #
-        # Find the main body action by its known naming convention, rather than relying on
-        # whatever action happens to already be assigned to the armature object.
+        # Find the main body action by its known naming convention.
         body_action_name = BODY_ACTION_PREFIX + self.mms_line.name
         if body_action_name not in bpy.data.actions:
             raise Exception(f"Body animation '{body_action_name}' not found in loaded scene.")
@@ -109,9 +73,8 @@ class ActionOperator:
 
         # Set the name of the imported action, avoiding duplicates and auto renaming in case of multiple glosses with the same name in the MMS
         body_action.name = "imported_" + self.mms_line.output_name
-        armature_obj.animation_data.action = body_action
 
-        logger.info(f"Initialized armature '{armature_obj.name}' with action '{armature_obj.animation_data.action.name}'")
+        logger.info(f"Imported body action '{body_action.name}'")
 
         # Store direct reference to the armature/body action
         self.imported_main_armature_action = body_action
@@ -186,17 +149,31 @@ class ActionOperator:
         return sampled_action
 
 
-    def copy_armature(self) -> bpy.types.Object:
-        """Creates a copy of the armature and its animation.
+    def create_resampled_armature(self, template_armature_obj: bpy.types.Object) -> bpy.types.Object:
+        """Duplicates the given armature to carry this gloss's resampled action.
+        Plays the role of the source/dictionary armature during the inflection process.
+        :param target_armature_obj: the armature to duplicate (the character to be rendered).
         :return: the reference to the armature copy.
         """
-        bpy_utils.select_object(self.src_armature)
+        new_armature = bpy_utils.duplicate_armature_obj(template_armature_obj, self.mms_line.output_name)
 
-        if self.src_armature is None:
-            raise Exception("Can't copy the armature. Source is None")
+        new_armature.animation_data_create()
+        resampled_action_name = "resampled_" + self.mms_line.output_name
+        new_armature.animation_data.action = bpy.data.actions[resampled_action_name]
 
-        duplicate_armature = bpy_utils.duplicate(
-            self.src_armature, self.mms_line.output_name
-        )
         bpy.context.view_layer.update()
-        return duplicate_armature
+        return new_armature
+
+    def create_inflected_armature(self, template_armature_obj: bpy.types.Object) -> bpy.types.Object:
+        """Creates a copy of the given armature, to be inflected.
+        :param target_armature_obj: the armature to duplicate (the character to be rendered).
+        :return: the reference to the armature copy.
+        """
+        new_armature = bpy_utils.duplicate_armature_obj(template_armature_obj, f"inflected_{self.mms_line.output_name}")
+
+        new_armature.animation_data_create()
+        new_action = bpy.data.actions.new(name=f"inflected_{self.mms_line.output_name}")
+        new_armature.animation_data.action = new_action
+
+        bpy.context.view_layer.update()
+        return new_armature
