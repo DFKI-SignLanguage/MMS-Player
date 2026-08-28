@@ -603,25 +603,24 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # sentence, we are resampling the animation frames.
         armature_operator = ActionOperator(mmsline)
 
-        armature_operator.load_animation()
+        armature_operator.load_actions()
 
         # The source armature has been loaded
         assert armature_operator.src_armature is not None
         # Here the "imported_" actions have been created
-        assert "imported_" + mmsline.output_name in bpy.data.actions
-        assert "imported_blendshapes_" + mmsline.output_name in bpy.data.actions
+        assert armature_operator.imported_main_armature_action is not None
+        assert armature_operator.imported_main_shapekeys_action is not None
 
         if not arguments.ignore_gloss_duration:
-            src_action_name = "imported_" + mmsline.output_name
-            src_action = bpy.data.actions[src_action_name]
+            src_action = armature_operator.imported_main_armature_action
             mmsline.original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
 
             if arguments.use_relative_time:
-                resampled_action = armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=src_action_name, target_action_name="resampled_" + mmsline.output_name)
-                armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+                resampled_action = armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
+                armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=armature_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
             else:
-                resampled_action = armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=src_action_name, target_action_name="resampled_" + mmsline.output_name)
-                armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+                resampled_action = armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
+                armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=armature_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
 
             armature_operator.src_armature.animation_data.action = resampled_action
             mmsline.resampled_frame_range = resampled_action.frame_range[0], resampled_action.frame_range[1]

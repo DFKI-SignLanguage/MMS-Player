@@ -29,14 +29,11 @@ from . import bpy_utils
 
 
 class ActionOperator:
-    """This class is responsible for baking the inflected gloss animation.
+    """This utility class has the methods to:
 
-    It has to fulfill the following criteria:
-    1. Load the gloss animation.
-    2. Add an IK controller on this animation bone.
-    3. Create a copy of the armature
-    4. Copy the trajectory of the animation.
-    5. Finally, apply the animation.
+    1. Load the gloss animations needed to realize a given MMSLine.
+    2. Resample an action to a given target frame number
+    3. TODO - Mix several animationsactions together
     """
 
     def __init__(self, mms_line: MMSLine) -> None:
@@ -44,11 +41,14 @@ class ActionOperator:
         self.mms_line = mms_line
         self.src_armature: Optional[bpy.types.Object] = None
 
-    def load_animation(self) -> None:
+        self.imported_main_armature_action: Optional[bpy.types.Action] = None
+        self.imported_main_shapekeys_action: Optional[bpy.types.Action] = None
+
+
+    def load_actions(self) -> None:
         """Load the animation into the scene.
 
-        This code copies the assets from the library and links it into the current blender
-        context. Since the context data can be overwritten, we store a link in mms line.
+        This code copies the assets from the library and links it into the current blender context.
         """
 
         blend_path = self.mms_line.path
@@ -95,6 +95,10 @@ class ActionOperator:
 
         logger.info(f"Initialized armature '{armature_obj.name}' with action '{armature_obj.animation_data.action.name}'")
 
+        # Store direct reference to the armature/body action
+        self.imported_main_armature_action = armature_obj.animation_data.action
+
+
         #
         # Check for the presence of the Blendshape face animation
         face_action_name = "blendshapes_" + self.mms_line.name
@@ -104,6 +108,9 @@ class ActionOperator:
         # Rename the action to a unique name
         face_action = bpy.data.actions[face_action_name]
         face_action.name = "imported_blendshapes_" + self.mms_line.output_name
+
+        # Store direct reference to the shapekeys/face action
+        self.imported_main_shapekeys_action = face_action
 
         self.src_armature = armature_obj
 
