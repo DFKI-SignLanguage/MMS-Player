@@ -155,13 +155,16 @@ class ActionOperator:
         :param target_armature_obj: the armature to duplicate (the character to be rendered).
         :return: the reference to the armature copy.
         """
-        new_armature = bpy_utils.duplicate_armature_obj(template_armature_obj, self.mms_line.output_name)
+        new_armature = bpy_utils.duplicate_obj(template_armature_obj, self.mms_line.output_name)
 
+        new_armature.animation_data_clear()
         new_armature.animation_data_create()
         resampled_action_name = "resampled_" + self.mms_line.output_name
         new_armature.animation_data.action = bpy.data.actions[resampled_action_name]
 
+        bpy.context.collection.objects.link(new_armature)
         bpy.context.view_layer.update()
+
         return new_armature
 
     def create_inflected_armature(self, template_armature_obj: bpy.types.Object) -> bpy.types.Object:
@@ -169,11 +172,14 @@ class ActionOperator:
         :param target_armature_obj: the armature to duplicate (the character to be rendered).
         :return: the reference to the armature copy.
         """
-        new_armature = bpy_utils.duplicate_armature_obj(template_armature_obj, f"inflected_{self.mms_line.output_name}")
+        new_armature = bpy_utils.duplicate_obj(template_armature_obj, f"inflected_{self.mms_line.output_name}")
 
+        new_armature.animation_data_clear()
         new_armature.animation_data_create()
         new_action = bpy.data.actions.new(name=f"inflected_{self.mms_line.output_name}")
         new_armature.animation_data.action = new_action
 
+        bpy.context.collection.objects.link(new_armature)
         bpy.context.view_layer.update()
+
         return new_armature

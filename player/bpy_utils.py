@@ -64,21 +64,20 @@ def select_bone(bone):
     bone.select_tail = True
 
 
-def duplicate_armature_obj(src_armature: bpy.types.Object, name: str) -> bpy.types.Object:
-    """Duplicate an armature object and its data (bones/rest pose), without touching animation data.
+def duplicate_obj(src_obj: bpy.types.Object, name: str) -> bpy.types.Object:
+    """Duplicate an armature object and its data, without touching its animation data.
 
     :param src_armature: the armature object to duplicate.
     :param name: the name to assign to both the duplicated object and its armature data.
-    :return: the reference to the armature copy.
+    :return: the reference to the armature object copy.
     """
-    new_armature = src_armature.copy()
-    new_armature.data = src_armature.data.copy()
-    new_armature.animation_data_clear()
-    bpy.context.collection.objects.link(new_armature)
 
-    select_object(new_armature)
-    bpy.context.object.name = name
-    bpy.context.object.data.name = name
+    new_armature = src_obj.copy()
+    new_armature.name = name
+
+    new_armature.data = src_obj.data.copy()
+    new_armature.data.name = name
+
     return new_armature
 
 
