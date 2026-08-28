@@ -28,8 +28,8 @@ sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 from player.mms_parser import MMSParser
 from player.action_utils import ActionOperator
 from player.merge import Glue, GlossSegment
-from player.controllers import InflectionDirector
-from player.targets import IKTargetConfig
+from player.inflection import InflectionDirector
+from player.inflection import IKTargetConfig
 from player.bpy_utils import select_object
 from player.logging import logger
 from player.logging import enable_log_to_stdout
