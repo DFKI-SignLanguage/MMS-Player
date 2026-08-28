@@ -41,11 +41,11 @@ from .logging import logger
 from .mms_parser import MMSLine
 
 
-class Controller:
+class InflectionDirector:
     """Responsible for orchestrating the IK controller."""
     def __init__(self,
-                 armature: bpy.types.Object,
-                 dictionary_armature_name: str,
+                 target_armature: bpy.types.Object,
+                 src_armature_name: str,
                  target_configs: List[targets.IKTargetConfig],
                  idx: int) -> None:
         """Initialize Controller object.
@@ -61,8 +61,8 @@ class Controller:
             obj_class = getattr(targets, target_config.target)
             ik_target = obj_class(
                 idx,
-                armature=armature,
-                dictionary_name=dictionary_armature_name,
+                target_armature=target_armature,
+                src_armature_name=src_armature_name,
                 dominance=target_config.dominance,
                 target_bone=target_config.bone,
                 target_root=target_config.root,

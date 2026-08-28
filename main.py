@@ -28,7 +28,7 @@ sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 from player.mms_parser import MMSParser
 from player.action_utils import ActionOperator
 from player.merge import Glue, GlossSegment
-from player.controllers import Controller
+from player.controllers import InflectionDirector
 from player.targets import IKTargetConfig
 from player.bpy_utils import select_object
 from player.logging import logger
@@ -652,8 +652,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # TODO -- Postpone the creation of the inflected action.
         assert f"inflected_{mmsline.output_name}" in bpy.data.actions
 
-        inflector = Controller(armature=inflected_armature,
-                               dictionary_armature_name=armature_operator.src_armature.name,
+        inflector = InflectionDirector(target_armature=inflected_armature,
+                               src_armature_name=armature_operator.src_armature.name,
                                target_configs=ik_target_config_list,
                                idx=gloss[0])
         inflector.setup_chain(
@@ -670,6 +670,36 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # Perform the inflection !!!
         if not arguments.without_inflection:
             inflector.execute(inflected_armature, mmsline)
+
+        #
+        # Remove unneeded armatures and actions.
+        # Only the "inflected_" and "resampled_blendshapes_" actions must survive until the Glue step.
+
+        # The IK controller empties are not needed anymore: their motion has already been baked into the inflected action.
+        for ik_target in inflector.ik_targets:
+            if ik_target.ctrl is not None:
+                bpy.data.objects.remove(ik_target.ctrl)
+
+        # The original (dictionary) armature: only its actions are needed downstream.
+        src_armature_data = armature_operator.src_armature.data
+        bpy.data.objects.remove(armature_operator.src_armature)
+        bpy.data.armatures.remove(src_armature_data)
+
+        # The inflected armature too, unless --extract still needs it by name afterwards.
+        if not arguments.extract:
+            inflected_armature_data = inflected_armature.data
+            bpy.data.objects.remove(inflected_armature)
+            bpy.data.armatures.remove(inflected_armature_data)
+
+        # The intermediate actions superseded by "resampled_"/"inflected_".
+        for stale_action_name in (
+            armature_operator.imported_main_armature_action.name,
+            armature_operator.imported_main_shapekeys_action.name,
+            "resampled_" + mmsline.output_name,
+        ):
+            stale_action = bpy.data.actions.get(stale_action_name)
+            if stale_action is not None:
+                bpy.data.actions.remove(stale_action)
 
     #
     # For each MMS line, the inflected action has been created

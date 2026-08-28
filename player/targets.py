@@ -68,8 +68,9 @@ class GenericTarget(Target):
 
     def __init__(
         self,
-        idx: int, armature: bpy.types.Object,
-        dictionary_name: str,
+        idx: int,
+        target_armature: bpy.types.Object,
+        src_armature_name: str,
         dominance: str,
         target_bone: str,
         target_root: str,
@@ -87,8 +88,8 @@ class GenericTarget(Target):
         :param constraints: Dictionary of constraints to be applied during inflections (See: controller_config.json)
         """
         self.__idx = idx
-        self.__arm = armature
-        self.__dictionary_armature = dictionary_name
+        self.__arm = target_armature
+        self.__src_armature_name = src_armature_name
         self.__dominance = dominance
         self.__target_bone = target_bone
         self.__target_root = target_root
@@ -112,7 +113,7 @@ class GenericTarget(Target):
         pass
 
     @property
-    def armature(self):
+    def target_armature(self):
         return self.__arm
 
     @property
@@ -136,8 +137,8 @@ class GenericTarget(Target):
         return self.__constraints
 
     @property
-    def dict_armature(self):
-        return self.__dictionary_armature
+    def src_armature_name(self):
+        return self.__src_armature_name
 
     @property
     def idx(self):
@@ -157,11 +158,11 @@ class LocalRotationTarget(GenericTarget):
         dg = bpy.context.evaluated_depsgraph_get()
         dg.update()  # TODO -- is it really needed?!
         scene_objects = bpy.context.scene.objects
-        target_bone = scene_objects[self.armature.name].pose.bones[self.target_bone]
-        root_bone = scene_objects[self.armature.name].pose.bones[self.target_root]
+        target_bone = scene_objects[self.target_armature.name].pose.bones[self.target_bone]
+        root_bone = scene_objects[self.target_armature.name].pose.bones[self.target_root]
 
-        target_bone_from_dict = scene_objects[self.dict_armature].pose.bones[self.target_bone]
-        root_bone_from_dict = scene_objects[self.dict_armature].pose.bones[self.target_root]
+        target_bone_from_dict = scene_objects[self.src_armature_name].pose.bones[self.target_bone]
+        root_bone_from_dict = scene_objects[self.src_armature_name].pose.bones[self.target_root]
         if self.delta_o is not None:
             current_rot_rel_to = self.get_rotation_rel_to(target_bone_from_dict, root_bone_from_dict)
             new_rot_rel_to = self.delta_o @ current_rot_rel_to
@@ -229,7 +230,7 @@ class TrajectoryTarget(GenericTarget):
         cube = bpy.context.active_object
         cube.name = f"IK_CTRL_FOR_{self.target_bone}_{self.idx}"
         cube.rotation_mode = "QUATERNION"
-        cube.parent = self.armature
+        cube.parent = self.target_armature
         cube.parent_type = "BONE"
         cube.parent_bone = self.target_root
         return cube
@@ -240,8 +241,8 @@ class TrajectoryTarget(GenericTarget):
 
         # target_bone = scene_objects[self.armature.name].pose.bones[self.target_bone]
         # target_root = scene_objects[self.armature.name].pose.bones[self.target_root]
-        target_bone = scene_objects[self.dict_armature].pose.bones[self.target_bone]
-        target_root = scene_objects[self.dict_armature].pose.bones[self.target_root]
+        target_bone = scene_objects[self.src_armature_name].pose.bones[self.target_bone]
+        target_root = scene_objects[self.src_armature_name].pose.bones[self.target_root]
 
         # The vector to shift back from the tail to the head of the IK root bone
         root_vector = target_root.head - target_root.tail
@@ -261,7 +262,7 @@ class TrajectoryTarget(GenericTarget):
         return f"Trajectory Target for {self.target_bone}"
 
     def add_constraints(self):
-        target_bone = bpy.context.scene.objects[self.armature.name].pose.bones[self.target_bone]
+        target_bone = bpy.context.scene.objects[self.target_armature.name].pose.bones[self.target_bone]
         ik_constraint = target_bone.constraints.new("IK")
         ik_constraint.target = self.ctrl
         ik_constraint.use_tail = self.constraints.use_tail
