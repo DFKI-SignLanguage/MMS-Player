@@ -16,7 +16,7 @@
 
 from . import mms_parser
 from . import bpy_utils
-from . import ArmatureUtils
+from . import action_utils
 
 
-__all__ = ["mms_parser", "bpy_utils", "ArmatureUtils"]
+__all__ = ["mms_parser", "bpy_utils", "action_utils"]

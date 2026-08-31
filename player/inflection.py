@@ -22,11 +22,13 @@
 from abc import ABC, abstractmethod
 from collections import abc
 from keyword import iskeyword
+from typing import List
 
 import bpy
 import mathutils
 from player import bpy_utils
 
+from player.logging import logger
 from player.mms_parser import MMSLine
 
 
@@ -68,8 +70,9 @@ class GenericTarget(Target):
 
     def __init__(
         self,
-        idx: int, armature: bpy.types.Object,
-        dictionary_name: str,
+        idx: int,
+        target_armature: bpy.types.Object,
+        src_armature_name: str,
         dominance: str,
         target_bone: str,
         target_root: str,
@@ -87,8 +90,8 @@ class GenericTarget(Target):
         :param constraints: Dictionary of constraints to be applied during inflections (See: controller_config.json)
         """
         self.__idx = idx
-        self.__arm = armature
-        self.__dictionary_armature = dictionary_name
+        self.__arm = target_armature
+        self.__src_armature_name = src_armature_name
         self.__dominance = dominance
         self.__target_bone = target_bone
         self.__target_root = target_root
@@ -112,7 +115,7 @@ class GenericTarget(Target):
         pass
 
     @property
-    def armature(self):
+    def target_armature(self):
         return self.__arm
 
     @property
@@ -136,8 +139,8 @@ class GenericTarget(Target):
         return self.__constraints
 
     @property
-    def dict_armature(self):
-        return self.__dictionary_armature
+    def src_armature_name(self):
+        return self.__src_armature_name
 
     @property
     def idx(self):
@@ -157,11 +160,11 @@ class LocalRotationTarget(GenericTarget):
         dg = bpy.context.evaluated_depsgraph_get()
         dg.update()  # TODO -- is it really needed?!
         scene_objects = bpy.context.scene.objects
-        target_bone = scene_objects[self.armature.name].pose.bones[self.target_bone]
-        root_bone = scene_objects[self.armature.name].pose.bones[self.target_root]
+        target_bone = scene_objects[self.target_armature.name].pose.bones[self.target_bone]
+        root_bone = scene_objects[self.target_armature.name].pose.bones[self.target_root]
 
-        target_bone_from_dict = scene_objects[self.dict_armature].pose.bones[self.target_bone]
-        root_bone_from_dict = scene_objects[self.dict_armature].pose.bones[self.target_root]
+        target_bone_from_dict = scene_objects[self.src_armature_name].pose.bones[self.target_bone]
+        root_bone_from_dict = scene_objects[self.src_armature_name].pose.bones[self.target_root]
         if self.delta_o is not None:
             current_rot_rel_to = self.get_rotation_rel_to(target_bone_from_dict, root_bone_from_dict)
             new_rot_rel_to = self.delta_o @ current_rot_rel_to
@@ -229,7 +232,7 @@ class TrajectoryTarget(GenericTarget):
         cube = bpy.context.active_object
         cube.name = f"IK_CTRL_FOR_{self.target_bone}_{self.idx}"
         cube.rotation_mode = "QUATERNION"
-        cube.parent = self.armature
+        cube.parent = self.target_armature
         cube.parent_type = "BONE"
         cube.parent_bone = self.target_root
         return cube
@@ -240,8 +243,8 @@ class TrajectoryTarget(GenericTarget):
 
         # target_bone = scene_objects[self.armature.name].pose.bones[self.target_bone]
         # target_root = scene_objects[self.armature.name].pose.bones[self.target_root]
-        target_bone = scene_objects[self.dict_armature].pose.bones[self.target_bone]
-        target_root = scene_objects[self.dict_armature].pose.bones[self.target_root]
+        target_bone = scene_objects[self.src_armature_name].pose.bones[self.target_bone]
+        target_root = scene_objects[self.src_armature_name].pose.bones[self.target_root]
 
         # The vector to shift back from the tail to the head of the IK root bone
         root_vector = target_root.head - target_root.tail
@@ -261,7 +264,7 @@ class TrajectoryTarget(GenericTarget):
         return f"Trajectory Target for {self.target_bone}"
 
     def add_constraints(self):
-        target_bone = bpy.context.scene.objects[self.armature.name].pose.bones[self.target_bone]
+        target_bone = bpy.context.scene.objects[self.target_armature.name].pose.bones[self.target_bone]
         ik_constraint = target_bone.constraints.new("IK")
         ik_constraint.target = self.ctrl
         ik_constraint.use_tail = self.constraints.use_tail
@@ -348,3 +351,177 @@ class IKTargetConfig:
     @property
     def dict(self):
         return self.__data
+
+
+class InflectionDirector:
+    """Responsible for orchestrating the IK controller.
+
+        With each IK motions, different bones are going to be affected. This module contains
+        the necessary IK controllers for the skeleton.
+
+        It has to do the following things:
+        1. Store the reference to parent of the IK bone.
+        2. Create an IK bone
+        3. Store the forward motion of the IK bone.
+        4. Bake it into IK.
+        5. Apply the IK inflection on the IK bones.
+
+    """
+
+    def __init__(self,
+                 target_armature: bpy.types.Object,
+                 src_armature_name: str,
+                 target_configs: List[IKTargetConfig],
+                 idx: int) -> None:
+        """Initialize Controller object.
+
+        @param armature: The source armature to be inflected.
+        @param dictionary_armature_name: The name of the armature in dictionary.
+        @param ik_targets: The list of IK targets responsible for controlling the bones.
+        @param idx: The progressive ID of the gloss in the sequence.
+        """
+        self.ik_targets: List[GenericTarget] = []
+        # Dynamically compose the inflection targets that allow to perform the inflection.
+        for target_config in target_configs:
+            obj_class = globals()[target_config.target]  # looks the class up in the module's own namespace with no import needed.
+            ik_target = obj_class(
+                idx,
+                target_armature=target_armature,
+                src_armature_name=src_armature_name,
+                dominance=target_config.dominance,
+                target_bone=target_config.bone,
+                target_root=target_config.root,
+                inflection_type=target_config.itype,
+                constraints=target_config.constraints,
+            )
+            self.ik_targets.append(ik_target)
+
+    def setup_chain(self,
+                    source_armature: bpy.types.Object,
+                    target_armature: bpy.types.Object,
+                    inflected_action_name: str,
+                    mms_line: MMSLine,
+                    without_inflection: bool = False):
+        """Set up the armature skeleton for animation.
+
+        @param source_armature: The source armature containing the signing animation
+        @param target_armature: The target armature that contains the IK controller.
+        @param output_name: The name of the inflected action.
+        @param mms_line: The row of the corresponding gloss.
+        @param without_inflection: This flag allows to disable the animation.
+
+        Note:
+            1. We copy the original animation from the source into the target.
+            This redundancy prevents us from modifying the original animation.
+
+            2. Once we copy the animation, we update the animation of corresponding
+            IK controllers.
+        """
+
+        if source_armature.animation_data is None:
+            raise Exception("Animation data missing in source armature object")
+
+        if source_armature.animation_data.action is None:
+            raise Exception("Action missing in source armature object")
+
+        if target_armature.animation_data is None:
+            raise Exception("Animation data missing in target armature object")
+
+        if target_armature.animation_data.action is None:
+            raise Exception("Action missing in target armature object")
+
+
+        source_action = source_armature.animation_data.action
+        start = int(source_action.frame_range[0])
+        end = int(source_action.frame_range[1])
+        # print(f"Source animation {action.name} range: {start} to {end}")
+        # 1. Copy skeletal animation from the main action track to the "inflected" one
+        # TODO --  check if it is really needed to switch to POSE mode and use operators at all.
+        bpy_utils.select_object(target_armature)
+        bpy.ops.object.mode_set(mode="POSE")
+        bpy.ops.pose.select_all(action="SELECT")
+        new_action = bpy.data.actions.get(inflected_action_name)
+        target_armature.animation_data.action = new_action
+        bpy.context.object.animation_data.action = new_action
+        bpy.context.scene.frame_set(start)
+        # print("Baking the forward pose into the IK bones.")
+
+        # Copies the bone rotations from the source armature to the target, inflected one
+        for frame in range(start, end + 1):
+            bpy.context.scene.frame_set(frame)
+            for bone in source_armature.pose.bones:
+                tgt_bone = target_armature.pose.bones[bone.name]
+                tgt_bone.matrix_basis = bone.matrix_basis.copy()
+                tgt_bone.keyframe_insert("location", frame=frame)
+                tgt_bone.keyframe_insert("rotation_euler", frame=frame)
+
+        # This performs the "baking" of the animation into the given animation IK controller
+        for frame in range(start, end + 1):
+            bpy.context.scene.frame_set(frame)
+            for obj in self.ik_targets:
+                tgt_bone = target_armature.pose.bones[obj.target_bone]
+                tgt_root = target_armature.pose.bones[obj.target_root]
+                location = tgt_bone.head + (tgt_root.head - tgt_root.tail)
+                rotation = tgt_bone.rotation_euler.to_quaternion()
+                if not isinstance(obj, TrajectoryTarget):
+                    continue
+                elif isinstance(obj, RelativeLocRotTarget):
+                    location = tgt_bone.tail + (tgt_root.head - tgt_root.tail)
+                elif isinstance(obj, HeadRotTarget):
+                    location = tgt_bone.tail + (tgt_root.head - tgt_root.tail)
+                    rotation = (
+                        tgt_root.matrix.to_quaternion().inverted()
+                        @ tgt_bone.matrix.to_quaternion()
+                    )
+                obj.ctrl.location = tgt_root.matrix.inverted() @ location
+                obj.ctrl.rotation_quaternion = rotation
+                obj.ctrl.keyframe_insert("location", frame=frame)
+                obj.ctrl.keyframe_insert("rotation_quaternion", frame=frame)
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        for bone in self.ik_targets:
+            bone.add_constraints()
+            if not without_inflection:
+                bone.init_from_mms(mms_line)
+        # TODO: When without inflection, avoid the baking and copying animation.
+        #       Instead use the original animation. (Priority: Low)
+
+    def execute(self, armature_obj: bpy.types.Object, mms_line: MMSLine):
+        """Inflect the IK targets of a given MMSLine and bake the animation.
+
+        @param armature: The target armature containing the IK targets.
+        @param mms_line: The MMS table
+        """
+
+        bpy_utils.select_object(armature_obj)
+        bpy.ops.object.mode_set(mode="POSE")
+
+        action = bpy.data.actions.get(f"inflected_{mms_line.output_name}")  # TODO -- try to get out of here this action name composition
+        bpy.context.object.animation_data.action = action
+        start = int(action.frame_range[0])
+        stop = int(action.frame_range[1])
+        logger.info(f"Frame start: {start}, Frame End: {stop}")
+
+        # Inflect each of the targets per frame.
+        for frame in range(start, stop + 1):
+            bpy.context.scene.frame_set(frame)
+            bpy.context.view_layer.update()
+            for bone in self.ik_targets:
+                bone.inflect(frame)
+            # break
+        # return
+
+        # Finally bake the animation
+        bpy.ops.pose.select_all(action="SELECT")
+        bpy.ops.nla.bake(
+            frame_start=start,
+            frame_end=stop,
+            step=1,
+            only_selected=True,
+            visual_keying=True,
+            clear_constraints=False,
+            use_current_action=True,
+            bake_types={"POSE"},
+        )
+        bpy.ops.object.mode_set(mode="OBJECT")

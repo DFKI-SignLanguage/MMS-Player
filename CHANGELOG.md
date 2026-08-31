@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+- simplified action management. Now supporting dictionary versions with purged Blender scenes (Dictionary size reduced to less than 5%)-
+
 ## [0.3.0] - 2025-08-27
 
 - Important fix to support GLOSSES with a dash (-) in their name.

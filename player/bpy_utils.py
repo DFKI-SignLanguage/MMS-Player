@@ -64,20 +64,21 @@ def select_bone(bone):
     bone.select_tail = True
 
 
-def duplicate(src_armature: bpy.types.Object, name: str) -> bpy.types.Object:
-    duplicate_armature = src_armature.copy()
-    duplicate_armature.data = src_armature.data.copy()
-    duplicate_armature.animation_data_clear()
-    duplicate_armature.animation_data_create()
-    bpy.context.collection.objects.link(duplicate_armature)
+def duplicate_obj(src_obj: bpy.types.Object, name: str) -> bpy.types.Object:
+    """Duplicate an armature object and its data, without touching its animation data.
 
-    # TODO --  get out of here all those names preparation
-    select_object(duplicate_armature)
-    bpy.context.object.name = f"inflected_{name}"
-    bpy.context.object.data.name = f"inflected_{name}"
-    new_action = bpy.data.actions.new(name=f"inflected_{name}")
-    bpy.context.object.animation_data.action = new_action
-    return duplicate_armature
+    :param src_armature: the armature object to duplicate.
+    :param name: the name to assign to both the duplicated object and its armature data.
+    :return: the reference to the armature object copy.
+    """
+
+    new_armature = src_obj.copy()
+    new_armature.name = name
+
+    new_armature.data = src_obj.data.copy()
+    new_armature.data.name = name
+
+    return new_armature
 
 
 def add_copy_constraints(armature, name: str, subtarget: str):

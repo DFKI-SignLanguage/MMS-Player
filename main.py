@@ -26,10 +26,10 @@ sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 
 
 from player.mms_parser import MMSParser
-from player.ArmatureUtils import ArmatureOperator
+from player.action_utils import ActionOperator
 from player.merge import Glue, GlossSegment
-from player.controllers import Controller
-from player.targets import IKTargetConfig
+from player.inflection import InflectionDirector
+from player.inflection import IKTargetConfig
 from player.bpy_utils import select_object
 from player.logging import logger
 from player.logging import enable_log_to_stdout
@@ -385,7 +385,7 @@ def initialize_scene():
 
 
 def initialize_target_armature():
-    """Replace the bone names in the rtemplate armature and create a new action.
+    """Replace the bone names in the template armature and create a new action.
     The original names in the template scene are "Bone Pelvis". This name doesn't work for the
     skeletal animations which are of format "Bone_Pelvis". Thus, we modify
     the name of bones in the original mesh itself as it is one time operation.
@@ -582,6 +582,26 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     for obj in bpy.data.objects:
         bpy.data.objects.remove(obj)
 
+    # Load the template scene containing the target character, to be animated later on.
+    initialize_scene()
+
+    # Checks
+    assert TARGET_ARMATURE_NAME in bpy.context.scene.objects
+    assert TARGET_ARMATURE_NAME in bpy.data.objects
+    assert TARGET_FACE_MESH_NAME in bpy.context.scene.objects
+    assert TARGET_FACE_MESH_NAME in bpy.data.objects
+    assert TARGET_LEYE_MESH_NAME in bpy.context.scene.objects
+    assert TARGET_LEYE_MESH_NAME in bpy.data.objects
+    assert TARGET_REYE_MESH_NAME in bpy.context.scene.objects
+    assert TARGET_REYE_MESH_NAME in bpy.data.objects
+
+    # Check the types and fix the bone names of the target armature
+    initialize_target_armature()
+
+    # The target character's armature is duplicated per-gloss below, both to carry each gloss's own
+    # animation and to be inflected, so that no gloss blend needs to bring its own armature.
+    target_armature = bpy.data.objects[TARGET_ARMATURE_NAME]
+
     # Iterate on MMS rows
     # For each row, create a new action with the inflected gloss animation
     for gloss in mms.glosses:
@@ -598,52 +618,85 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # TODO -- in case of HOLD, now we are essentially resampling the whole action of the previous gloss.
         #         We could optimize it with an ad-hoc branch that simply copies two times the last frame of the previous action.
 
-        # Pass it through the ArmatureOperator class and prepare the animation for further
+        # Pass it through the ActionOperator class and prepare the animation for further
         # processing. Since we want to have the same number of frames as the source
         # sentence, we are resampling the animation frames.
-        armature_operator = ArmatureOperator(mmsline)
+        armature_operator = ActionOperator(mmsline)
 
-        armature_operator.load_animation()
+        armature_operator.load_actions()
 
-        # The source armature has been loaded
-        assert armature_operator.src_armature is not None
         # Here the "imported_" actions have been created
-        assert "imported_" + mmsline.output_name in bpy.data.actions
-        assert "imported_blendshapes_" + mmsline.output_name in bpy.data.actions
-
-        inflected_armature = armature_operator.copy_armature()
-
-        # Inflected animation is already prepared while copying the armature.
-        # TODO -- Postpone the creation of the inflected action.
-        assert f"inflected_{mmsline.output_name}" in bpy.data.actions
+        assert armature_operator.imported_main_armature_action is not None
+        assert armature_operator.imported_main_shapekeys_action is not None
 
         if not arguments.ignore_gloss_duration:
-            if arguments.use_relative_time:
-                armature_operator.resample(timing=mmsline.duration(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=True)
-                armature_operator.resample_blendshapes_action(timing=mmsline.duration(), use_rel_time=True, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
-            else:
-                armature_operator.resample(timing=mmsline.timing(), target_action_name="resampled_" + mmsline.output_name, use_rel_time=False)
-                armature_operator.resample_blendshapes_action(timing=mmsline.timing(), use_rel_time=False, src_action_name="imported_blendshapes_" + mmsline.output_name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+            src_action = armature_operator.imported_main_armature_action
+            mmsline.original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
 
-        # Here the "updated_" animation has been created
+            if arguments.use_relative_time:
+                resampled_action = armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
+                armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=armature_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+            else:
+                resampled_action = armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
+                armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=armature_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+
+            mmsline.resampled_frame_range = resampled_action.frame_range[0], resampled_action.frame_range[1]
+
+        # Here the "resampled_..." action has been created
         assert "resampled_" + mmsline.output_name in bpy.data.actions
 
-        # We add the extra controllers to ensure that we will be able to modify the animation down the pipeline.
-        inflector = Controller(inflected_armature, armature_operator.src_armature.name, ik_target_config_list, gloss[0])
+        # Create an armature referencing the resampled action
+        resampled_armature = armature_operator.create_resampled_armature(target_armature)
+        # Create a new armature referencing a new action for the inflected sign
+        inflected_armature = armature_operator.create_inflected_armature(target_armature)
+        # Here an empty target "inflected_..." action has been created
+        assert f"inflected_{mmsline.output_name}" in bpy.data.actions
+
+        inflector = InflectionDirector(target_armature=inflected_armature,
+                               src_armature_name=resampled_armature.name,
+                               target_configs=ik_target_config_list,
+                               idx=gloss[0])
         inflector.setup_chain(
-            source_armature=armature_operator.src_armature,
+            source_armature=resampled_armature,
             target_armature=inflected_armature,
             inflected_action_name=f"inflected_{mmsline.output_name}",
             mms_line=mms[gloss],
             without_inflection=arguments.without_inflection,
         )
 
-        # Here the target "inflected_..." action has been already created
-        assert "inflected_" + mmsline.output_name in bpy.data.actions
-
         # Perform the inflection !!!
         if not arguments.without_inflection:
             inflector.execute(inflected_armature, mmsline)
+
+        #
+        # Remove unneeded armatures and actions.
+        # Only the "inflected_" and "resampled_blendshapes_" actions must survive until the Glue step.
+
+        # The IK controller empties are not needed anymore: their motion has already been baked into the inflected action.
+        for ik_target in inflector.ik_targets:
+            if ik_target.ctrl is not None:
+                bpy.data.objects.remove(ik_target.ctrl)
+
+        # The source armature: only its actions are needed downstream.
+        src_armature_data = resampled_armature.data
+        bpy.data.objects.remove(resampled_armature)
+        bpy.data.armatures.remove(src_armature_data)
+
+        # The inflected armature too, unless --extract still needs it by name afterwards.
+        if not arguments.extract:
+            inflected_armature_data = inflected_armature.data
+            bpy.data.objects.remove(inflected_armature)
+            bpy.data.armatures.remove(inflected_armature_data)
+
+        # The intermediate actions superseded by "resampled_"/"inflected_".
+        for stale_action_name in (
+            armature_operator.imported_main_armature_action.name,
+            armature_operator.imported_main_shapekeys_action.name,
+            "resampled_" + mmsline.output_name,
+        ):
+            stale_action = bpy.data.actions.get(stale_action_name)
+            if stale_action is not None:
+                bpy.data.actions.remove(stale_action)
 
     #
     # For each MMS line, the inflected action has been created
@@ -666,22 +719,6 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
             arguments.without_fingers,
         )
         return
-
-    # Load the template scene
-    initialize_scene()
-
-    # Checks
-    assert TARGET_ARMATURE_NAME in bpy.context.scene.objects
-    assert TARGET_ARMATURE_NAME in bpy.data.objects
-    assert TARGET_FACE_MESH_NAME in bpy.context.scene.objects
-    assert TARGET_FACE_MESH_NAME in bpy.data.objects
-    assert TARGET_LEYE_MESH_NAME in bpy.context.scene.objects
-    assert TARGET_LEYE_MESH_NAME in bpy.data.objects
-    assert TARGET_REYE_MESH_NAME in bpy.context.scene.objects
-    assert TARGET_REYE_MESH_NAME in bpy.data.objects
-
-    # Check the types and fix the bone names of the target armature
-    initialize_target_armature()
 
     #
     # Finally we merge individual signs to produce the final utterance of the full sentence.
