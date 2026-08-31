@@ -6,7 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
-- simplified action management. Now supporting dictionary versions with purged Blender scenes (Dictionary size reduced to less than 5%)-
+- Simplified action management. Now supporting dictionary versions with purged Blender scenes (Dictionary size reduced to less than 5%. See Dictionary deploy of 260828)
+- Creation of MMS Examples: Added exit code 1 to Blender, to better manage errors druring make invokes.
 
 ## [0.3.0] - 2025-08-27
 
