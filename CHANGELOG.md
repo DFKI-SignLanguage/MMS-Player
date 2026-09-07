@@ -6,8 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-09-07
+
 - Simplified action management. Now supporting dictionary versions with purged Blender scenes (Dictionary size reduced to less than 5%. See Dictionary deploy of 260828)
-- Creation of MMS Examples: Added exit code 1 to Blender, to better manage errors druring make invokes.
+- Creation of MMS Examples: In examples creation, added `--python-exit-code 1` to Blender command line invokation, to correctly manage rule dependencies on failures.
 
 ## [0.3.0] - 2025-08-27
 
