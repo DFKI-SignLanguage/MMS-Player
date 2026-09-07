@@ -3,9 +3,15 @@
 
 The MMS Player is a sign language animation generator based on 3D avatars. It is able to read an MMS file and produce a SL animation in different formats (MP4, FBX, BVH, JSON animation data, blender scene).
 
-MMS stands for "Multimodal SignStream", and it is a machine-and-human-readable format to represent sign languages.
+The implementation is based on the Python language, and it is meant to be executed through the [Blender 3D editor](http://www.blender.org).
+For more details on the implementation, please consult the [developers' docs](Docs/DEVELOPERS.md).
 
-The MMS format can be considered as "glosses on steroids": it is a sequence glosses  + timing information + inflections.
+<img src="Docs/Pics/MMS-Player-Diagram.png" width="100%" />
+
+
+This software is distributed under the [GPL 3 license](https://www.gnu.org/licenses/gpl-3.0.html).
+
+The [MMS input format](Docs/MMS.md) (Multimodal SignStream) is a machine-and-human-readable format to represent sign languages. The MMS can be seen as "glosses on steroids": it is essentially a table contaning a sequence glosses + timing information + spatial inflections.
 
 
 ## Examples
@@ -14,7 +20,7 @@ The MMS format can be considered as "glosses on steroids": it is a sequence glos
 
    <img src="Docs/Videos/Duration-INDEX-X3.gif" width="33%" alt="Preview of the INDEX sign animated with different durations and transitions" /> [source MMS](MMS-examples/Duration-INDEX-X3.mms.csv)
 
-2. Inflection of hands position. Here, the sign INDEX is relocated procedurally from its original _citation form_ into anothr 8 versions.
+2. Inflection of hands position. Here, the sign INDEX is relocated procedurally from its original _citation form_ into another 8 versions.
 
    <img src="Docs/Videos/HandReloc-INDEX-X9.gif" width="33%" alt="Preview of the INDEX sign with hands relocated into 8 versions" /> [source MMS](MMS-examples/HandReloc-INDEX-X9.mms.csv)
 
@@ -32,18 +38,8 @@ The MMS format can be considered as "glosses on steroids": it is a sequence glos
    <img src="Docs/Videos/Numbers-0-19.gif" width="33%" alt="Preview of numbers between 0 and 19" /> [source MMS](MMS-examples/Numbers-0-19.mms.csv)
 
 
-For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md) 
+For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md).
 
-## Architecture
-
-
-The implementation is based on the Python language, and it is meant to be executed through the [Blender 3D editor](http://www.blender.org).
-For more details on the implementation, please consult the [developers' docs](Docs/DEVELOPERS.md).
-
-<img src="Docs/Pics/MMS-Player-Diagram.png" width="100%" />
-
-
-This software is distributed under the [GPL 3 license](https://www.gnu.org/licenses/gpl-3.0.html).
 
 
 ## IMPORTANT DISCLAIMER
@@ -133,7 +129,7 @@ Generate your first animation (it uses the Python interpreter embedded in Blende
 
 ```bash
 $BLENDER_EXE --background --python-exit-code 1 --python main.py -- --source-mms-file MMS-examples/HandReloc-INDEX-X9.mms.csv \
-  --corpus-generated-directory $DICTIONARY_DIR \
+  --dictionary-dir $DICTIONARY_DIR \
   --use-relative-time \
   --export-mp4 HandReloc-INDEX-X9.mp4
 ```
@@ -142,17 +138,13 @@ $BLENDER_EXE --background --python-exit-code 1 --python main.py -- --source-mms-
 
 An MP4 video file is generated with the several inflected versions of the INDEX sign.
 
-<p>
-  <img src="Docs/Pics/INDEX-handreloc-upleft.png" width="25%"/>
-  <img src="Docs/Pics/INDEX-handreloc-orig.png" width="25%"/>
-  <img src="Docs/Pics/INDEX-handreloc-downright.png" width="25%"/>
-</p>
+<img src="Docs/Videos/HandReloc-INDEX-X9.gif" width="25%" alt="Preview of the INDEX sign with hands relocated into 8 versions" /> [source MMS: HandReloc-INDEX-X9.mms.csv](MMS-examples/HandReloc-INDEX-X9.mms.csv)
 
 If you want to keep Blender open and watch through the animation of the sign on the timeline, remove the `--background` and `--export-mp4` options and use:
 
 ```bash
 $BLENDER_EXE --python main.py -- --source-mms-file MMS-examples/HandReloc-INDEX-X9.mms.csv \
-  --corpus-generated-directory $AVASAG_CORPUS_DIR/generated/ \
+  --dictionary-dir $DICTIONARY_DIR \
   --use-relative-time
 ```
 
@@ -197,15 +189,9 @@ To use the server, make sure you install the Flask package:
 
 and then you can run the server.
 
-    export AVASAG_CORPUS_DIR=path/to/MyCorpusExtract
+    export DICTIONARY_DIR=path/to/dictionary/
     export BLENDER_EXE=/Applications/blender-4.2.2/Blender.app/Contents/MacOS/Blender
     python RunServer.py
-
-### GET `/api/corpus/sentence/animation/<number>`
-
-Animates the sentence with the given number <number> _already present in the corpus_ and returns it. For example:
-
-    wget localhost:5000/api/sentence/animation/0022
 
 
 ### POST `/api/mms/animation`
