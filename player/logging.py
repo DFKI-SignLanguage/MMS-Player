@@ -7,7 +7,7 @@ _timestamp_str = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
 
 # Create a temporary file path
 logging_filepath = tempfile.gettempdir() + f"/mms_run_log_{_timestamp_str}.txt"
-# log_file_path = f"mms_run_log_{timestamp_str}.txt"
+
 
 logging.basicConfig(
     filename=logging_filepath,
