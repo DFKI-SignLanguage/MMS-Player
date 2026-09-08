@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+- Issue #15. Removed the option to render a full sentence. Can easily be realized by automatically computing an MMS with 1 row.
+
 ## [0.4.0] - 2025-09-07
 
 - Simplified action management. Now supporting dictionary versions with purged Blender scenes (Dictionary size reduced to less than 5%. See Dictionary deploy of 260828)
