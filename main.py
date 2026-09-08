@@ -35,7 +35,7 @@ from player.logging import logger
 from player.logging import enable_log_to_stdout
 from player import extract
 
-from typing import List, Optional, Set
+from typing import List, Optional
 
 
 # The template Blender scene containing the character, the light setup, and some default rendering parameters
@@ -153,12 +153,6 @@ def add_options(arg_parser: argparse.ArgumentParser):
     )
 
     arg_parser.add_argument(
-        "--extract",
-        action="store_true",
-        help="Allows extracting the motion data for evaluation.",
-    )
-
-    arg_parser.add_argument(
         "--use-relative-time",
         action="store_true",
         help="When specified, uses the `duration` and `transition` columns of the MMS"
@@ -173,20 +167,16 @@ def add_options(arg_parser: argparse.ArgumentParser):
     )
 
     arg_parser.add_argument(
+        "--extract",
+        action="store_true",
+        help="Allows extracting the motion data for evaluation.",
+    )
+
+    arg_parser.add_argument(
         "--extract-path",
         type=str,
         help="Path for final extraction result",
         default=None,
-    )
-
-    arg_parser.add_argument(
-        "--render-sentence",
-        type=int,
-        help="Render the video of a si ngle specified sentence (AVASAG project)." \
-        " Provide an integer number X as parameter, it will be converted in 'SatzX.blend." \
-        " The file will be searched in the dictionary folder as 'sentences/trimmed/SatzX.blend'." \
-        " Parameter --source-mms-file will be ignored.",
-        required=False
     )
 
     arg_parser.add_argument(
@@ -240,13 +230,13 @@ def post_bake(
     assert armature.animation_data is not None
     assert armature.animation_data.action is not None
 
+    #
     # Hide the bones
     armature.hide_set(True)
 
     #
     # Hide the face rig
     bpy.data.objects['FaceitRig'].hide_viewport = True
-
 
     #
     # Set the render range
@@ -265,6 +255,8 @@ def post_bake(
     bpy.context.scene.render.resolution_y = render_size_y
     bpy.context.scene.render.resolution_percentage = render_size_pct
 
+    #
+    # Initialize the panel showing the currently played gloss.
     if gloss_panel:
         from player.gloss_panel import setup_gloss_panel
         if not gloss_timeline:
@@ -411,100 +403,15 @@ def initialize_target_armature():
         )
 
 
-def execute_single_sentence_realization_pipeline(arguments: argparse.Namespace) -> None:
-    """
-    For some use cases, it is necessary for us to only render the single original entence data into the avatar.
-    Inflections are not needed
-    Thus, the following block assures that we load the correct sentence animation render it, but bypassing the instancing and inflection overhead.
-    This function performs no inflection. Therefore, rendering is as straightforward as it can be.
-    """
-
-    # Must be true otherwise this block is not called.
-    assert arguments.render_sentence is not None
-
-    sentence_id: int = arguments.render_sentence
-
-    # Initialize the target scene and armature
-    initialize_scene()
-    initialize_target_armature()
-
-    # Load the source animation data from the sentence file
-    sentence_file = "Satz" + str(sentence_id) + ".blend"
-    sentence_path = Path(arguments.dictionary_dir).joinpath(
-        "sentences", "trimmed", sentence_file
-    )
-
-    # Import the sentence animation
-    with bpy.data.libraries.load(str(sentence_path)) as (data_from, data_to):
-        data_to.actions = data_from.actions
-
-    target_armature = bpy.data.objects[TARGET_ARMATURE_NAME]
-    target_face_mesh = bpy.data.objects[TARGET_FACE_MESH_NAME]
-    target_leye_mesh = bpy.data.objects[TARGET_LEYE_MESH_NAME]
-    target_reye_mesh = bpy.data.objects[TARGET_LEYE_MESH_NAME]
-
-    target_meshes = [target_face_mesh, target_leye_mesh, target_reye_mesh]
-
-    # Assertions for targets type
-    assert target_armature.type == 'ARMATURE'
-    for m in target_meshes:
-        assert m.type == 'MESH'
-
-    glue = Glue(
-        mms=None,  # It won't be needed when rendering a single sentence
-        target_armature_obj=target_armature,
-        target_mesh_objs=target_meshes,
-        target_action_name=TARGET_ACTION_NAME,
-        target_shapekeys_action_name=TARGET_SHAPEKEYS_ACTION_NAME
-    )
-
-    # Prepare the target animation curves, specifiyng the name of the source action
-    # By manually specifying the source action, the mms is not needed.
-    reference_armature_action = bpy.data.actions["updated_Satz" + str(sentence_id)]
-    reference_shapekey_action = bpy.data.actions["blendshapes_Satz" + str(sentence_id)]
-
-    # Create the fcurves in the target actions
-    glue.prepare_target_actions(reference_action=reference_armature_action, reference_shapekeys_action=reference_shapekey_action)
-    assert glue.target_action is not None
-
-    # Copy the armature action
-    glue.append_action(
-        target_action=bpy.data.actions[TARGET_ACTION_NAME],
-        source_action=reference_armature_action,
-        start=1
-    )
-    # Copy the shapekeys action
-    glue.append_action(
-        target_action=bpy.data.actions[TARGET_SHAPEKEYS_ACTION_NAME],
-        source_action=reference_shapekey_action,
-        start=1
-    )
-
-    post_bake(
-        armature_obj_name=glue.armature_obj.name,
-        action_name=glue.target_action.name,
-        mp4_path=arguments.export_mp4,
-        bvh_path=arguments.export_bvh,
-        fbx_path=arguments.export_fbx,
-        anim_json_path=arguments.export_anim_json,
-        blend_path=arguments.export_blend,
-        render_size_pct=arguments.render_size_pct,
-        render_size_x=arguments.res_x,
-        render_size_y=arguments.res_y,
-        gloss_panel=arguments.gloss_panel,
-        gloss_timeline=None,
-    )
-
-
-
 def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
-    """Execute the mms pipeline.
+    """Execute the realization pipeline.
 
     What does this method do?
-    1. Read a mms file.
-    2. Import the necessary gloss in the MMS file.
-    3. Attach the necessary IK controllers.
+    1. Read an MM file.
+    2. Import the necessary glosses needed by the MMS file.
+    3. Execute the inflections.
     4. Run the animation production pipeline.
+    5. Export or render the resulting animation.
     """
     mms_file = arguments.source_mms_file
     dictionary_root = arguments.dictionary_dir
@@ -840,11 +747,7 @@ if __name__ == "__main__":
     if args.log_to_console:
         enable_log_to_stdout()
 
-    if args.render_sentence:
-        print(f"Realizing single sentence with numer {args.render_sentence} ...")
-        execute_single_sentence_realization_pipeline(args)
-    else:
-        print(f"Realizing MMS from file '{args.source_mms_file}' ...")
-        execute_mms_realization_pipeline(args)
+    print(f"Realizing MMS from file '{args.source_mms_file}' ...")
+    execute_mms_realization_pipeline(args)
 
     print("All done.")
