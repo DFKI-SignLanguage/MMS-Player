@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 - Issue #15. Removed the option to render a full sentence. Can easily be realized by automatically computing an MMS with 1 row.
+- Removed support for multiple `fa:`/`num:` glosses in a single MMS row (e.g., `num:1-2-3`). Each gloss must now be on its own row.
 
 ## [0.4.0] - 2025-09-07
 

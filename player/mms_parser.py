@@ -26,7 +26,6 @@ import os
 import re
 
 from collections import OrderedDict
-from copy import deepcopy
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List
 
@@ -48,8 +47,8 @@ class MMSLine:
         # Filled later while scanning or loading the blend files
 
         self.path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
-        self.original_frame_range: Tuple[float, float] = None
-        self.resampled_frame_range: Tuple[float, float] = None
+        self.original_frame_range: Optional[Tuple[float, float]] = None
+        self.resampled_frame_range: Optional[Tuple[float, float]] = None
 
     def __getitem__(self, key):
         return self.line_data[self.store_index[key]]
@@ -304,47 +303,11 @@ class MMSParser:
 
         # Iterates on the MMS data
         glosses = {}
-        idx = 0
-        for gloss_line in data[1:]:
-            name, prefix = MMSLine.find_datatype(gloss_line[0])
+        for idx, gloss_line in enumerate(data[1:]):
             # Convert empty values to None.
             gloss_line = [x if x != "" else None for x in gloss_line]
-
-            # Handle the glosses with dashes such as: fa:R-E or num:1-5-9-7
-            # Only "fa" (fingerspelling) and "num" (number spelling) glosses use dashes
-            # to separate multiple letters/digits to be split into individual signs.
-            # Other classes (e.g. "gest", "prod") may contain dashes as part of a single
-            # compound gloss name (e.g. "prod:FALLEN(-gestreckter-zeigefinger)") and must
-            # not be split.
-            if prefix in ("fa", "num") and "-" in name:
-                start = float(gloss_line[index_for_column["framestart"]])
-                end = float(gloss_line[index_for_column["frameend"]])
-                diff = end - start
-                names = name.split("-")
-                delta = diff / len(names)
-                scale = 0.3
-                for i, gloss in enumerate(names):
-                    line = deepcopy(gloss_line)
-                    line[0] = prefix + ":" + gloss
-                    line[index_for_column["framestart"]] = start + delta * i
-                    line[index_for_column["frameend"]] = (
-                        start + delta * (i + 1) - scale * delta
-                    )
-                    line[index_for_column["transition"]] = scale * delta
-                    # Add the final transition information.
-                    if i == len(names) - 1:
-                        line[index_for_column["transition"]] = gloss_line[
-                            index_for_column["transition"]
-                        ]
-                    # Create a new gloss MMS line for the given fragment.
-                    gloss_data = MMSLine(index_for_column, line, idx + i)
-                    glosses[(idx + i, gloss_data.name)] = gloss_data
-                idx += len(names)
-                continue        # <-- BEWARE! Jumps out of the cycle, to the next row.
-
             gloss_data = MMSLine(index_for_column, gloss_line, idx)
             glosses[(idx, gloss_data.name)] = gloss_data
-            idx += 1
 
         # sorts the entries according to the "framestart"
         # TODO -- actually useless if the times are given in relative mode.
