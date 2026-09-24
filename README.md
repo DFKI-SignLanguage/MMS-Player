@@ -46,7 +46,7 @@ For more information and examples on the MMS, please refer to the included [MMS 
 
 This software is a research prototype!
 
-At its current stage, it DOES NOT represent whatsoever an application ready for the production of intelligible and quality approved sign language videos. (Notably, facial animation is still missing and under development.)
+At its current stage, it DOES NOT represent whatsoever an application ready for the production of intelligible and quality approved sign language videos. (Notably, facial animation is still under improvement.)
 
 This repository offers to the research community a baseline for further investigation, collaborations, and improvements in Sign Language synthesis.
 
@@ -54,12 +54,13 @@ This repository offers to the research community a baseline for further investig
 
 We are looking forward for international research collaborations through several means:
 
-- International public research projects (e.g., HORIZON EU);
+- International public research funding (e.g., HORIZON EU);
+- National public research funding (e.g., DFG, BMFTR, ...);
 - Applied research with industrial partners;
 - Applied research with public institutional bodies;
 - Master theses.
 
-Native signers pursuing a master in computer science or digital art are particularly welcome to collaborate.
+**Native signers pursuing a master in computer science or digital art are particularly welcome to collaborate.**
 
 Non-profit organizations for Deaf communities are particularly welcome to try the software and give us feedback.
 
