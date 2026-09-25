@@ -48,7 +48,6 @@ class MMSLine:
         # Filled later while scanning or loading the blend files
 
         self.path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
-        self.bpy_data = None  # Reference to the bpy.data containing the gloss animation data.
         self.original_frame_range: Tuple[float, float] = None
         self.resampled_frame_range: Tuple[float, float] = None
 
