@@ -162,8 +162,8 @@ def add_options(arg_parser: argparse.ArgumentParser):
     arg_parser.add_argument(
         "--ignore-gloss-duration",
         action="store_true",
-        help="When specified doesn't resample the animation (i.e., it uses the original duration of the gloss)."
-             "It works only together with --use-relative-time and essentially forces the duration column to '100%'."
+        help="When specified does not resample the animation (i.e., it uses the original duration of the gloss)."
+             "It works only together with --use-relative-time and essentially forces the duration column to 100%%."
     )
 
     arg_parser.add_argument(
