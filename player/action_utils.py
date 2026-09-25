@@ -35,9 +35,9 @@ FACE_ACTION_PREFIX = "blendshapes_"
 class ActionOperator:
     """This utility class has the methods to:
 
-    1. Load the gloss animations needed to realize a given MMSLine.
+    1. Load the gloss animation(s) needed to realize a given MMSLine.
     2. Resample an action to a given target frame number
-    3. TODO - Mix several animationsactions together
+    3. TODO - Mix several actions together
     """
 
     def __init__(self, mms_line: MMSLine) -> None:
@@ -155,7 +155,7 @@ class ActionOperator:
         :param target_armature_obj: the armature to duplicate (the character to be rendered).
         :return: the reference to the armature copy.
         """
-        new_armature = bpy_utils.duplicate_obj(template_armature_obj, self.mms_line.output_name)
+        new_armature = bpy_utils.duplicate_obj(template_armature_obj, f"resampled_{self.mms_line.output_name}")
 
         new_armature.animation_data_clear()
         new_armature.animation_data_create()

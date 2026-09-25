@@ -528,24 +528,24 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # Pass it through the ActionOperator class and prepare the animation for further
         # processing. Since we want to have the same number of frames as the source
         # sentence, we are resampling the animation frames.
-        armature_operator = ActionOperator(mmsline)
+        action_operator = ActionOperator(mmsline)
 
-        armature_operator.load_actions()
+        action_operator.load_actions()
 
         # Here the "imported_" actions have been created
-        assert armature_operator.imported_main_armature_action is not None
-        assert armature_operator.imported_main_shapekeys_action is not None
+        assert action_operator.imported_main_armature_action is not None
+        assert action_operator.imported_main_shapekeys_action is not None
 
         if not arguments.ignore_gloss_duration:
-            src_action = armature_operator.imported_main_armature_action
+            src_action = action_operator.imported_main_armature_action
             mmsline.original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
 
             if arguments.use_relative_time:
-                resampled_action = armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
-                armature_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=armature_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+                resampled_action = action_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
+                action_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=action_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
             else:
-                resampled_action = armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
-                armature_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=armature_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+                resampled_action = action_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
+                action_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=action_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
 
             mmsline.resampled_frame_range = resampled_action.frame_range[0], resampled_action.frame_range[1]
 
@@ -553,9 +553,9 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         assert "resampled_" + mmsline.output_name in bpy.data.actions
 
         # Create an armature referencing the resampled action
-        resampled_armature = armature_operator.create_resampled_armature(target_armature)
+        resampled_armature = action_operator.create_resampled_armature(target_armature)
         # Create a new armature referencing a new action for the inflected sign
-        inflected_armature = armature_operator.create_inflected_armature(target_armature)
+        inflected_armature = action_operator.create_inflected_armature(target_armature)
         # Here an empty target "inflected_..." action has been created
         assert f"inflected_{mmsline.output_name}" in bpy.data.actions
 
@@ -597,8 +597,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         # The intermediate actions superseded by "resampled_"/"inflected_".
         for stale_action_name in (
-            armature_operator.imported_main_armature_action.name,
-            armature_operator.imported_main_shapekeys_action.name,
+            action_operator.imported_main_armature_action.name,
+            action_operator.imported_main_shapekeys_action.name,
             "resampled_" + mmsline.output_name,
         ):
             stale_action = bpy.data.actions.get(stale_action_name)
