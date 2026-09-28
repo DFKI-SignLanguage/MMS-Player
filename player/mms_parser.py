@@ -37,11 +37,13 @@ class MMSLine:
     be inflected, the class functions to store and retrieve the data required
     for the inflection of the corresponding sign.
     """
+
     def __init__(self, store_index: Dict[str, int], line_data: List[Optional[str]], gloss_idx: int):
+
         self.store_index = store_index  # Maps the column name to its index within the MMS row.
         self.line_data = line_data  # The full row of the MMS in text format.
-        self.name, self.datatype = self.find_datatype(line_data[0])  # The gloss itsefl and its class/type (defauts to 'signs').
-        self.is_hold: bool = False # Set to true if the gloss in this lione is <HODL>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
+        self.name, self.datatype = self.find_datatype(line_data[0])  # The gloss itself and its class/type (defauts to 'signs').
+        self.is_hold: bool = False  # Set to true if the gloss in this lione is <HODL>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
         self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
 
         # Filled later while scanning or loading the blend files
@@ -233,22 +235,9 @@ class MMS:
         If the required file doesn't exist, an Exception is thrown.
         """
         
-        pattern = r'<(.*?)>'
-        for num, idx_and_gloss in enumerate(self.row_indices):
+        for idx_and_gloss in self.row_indices:
 
             mmsline = self[idx_and_gloss]
-
-            matches = re.findall(pattern, mmsline.name)
-            # TODO --  maybe move this block into the parsing logic.
-            if len(matches) > 0 and matches[0] == "HOLD":
-                print(num, "FOUND HOLD")
-                # TODO -- Why for HOLD the path is set to the path of the previous gloss? And if the HOLD is the first sign in the MMS, it is OK to leave it empty?
-                prev_line = self[self.row_indices[num - 1]]
-                # Override some mmsline properties
-                mmsline.name = prev_line.name
-                mmsline.datatype = prev_line.datatype
-                mmsline.output_name = f"{idx_and_gloss[0]}_HOLD_" + prev_line.name  # {idx_and_gloss[1]}"
-                mmsline.is_hold = True
 
             motion_file = f"{mmsline.name}.blend"
 
@@ -302,18 +291,38 @@ class MMSParser:
         }
 
         # Iterates on the MMS data
-        glosses = {}
-        for idx, gloss_line in enumerate(data[1:]):
+        rows_dict = {}
+        rows_list = []
+        for idx, mms_row_str in enumerate(data[1:]):
             # Convert empty values to None.
-            gloss_line = [x if x != "" else None for x in gloss_line]
-            gloss_data = MMSLine(index_for_column, gloss_line, idx)
-            glosses[(idx, gloss_data.name)] = gloss_data
+            mms_row_str = [x if x != "" else None for x in mms_row_str]
+            mms_row = MMSLine(index_for_column, mms_row_str, idx)
+
+            matches = re.findall(r'<(.*?)>', mms_row.name)
+
+            if len(matches) > 0 and matches[0] == "HOLD":
+                print(idx, "FOUND HOLD")
+                # We can not handle HOLD is the first sign in the MMS.
+                if idx == 0:
+                    raise Exception("<HOLD> can not be used in the first row of an MMS.")
+
+                prev_line = rows_list[idx - 1]
+                # Override some mmsline properties
+                mms_row.name = prev_line.name
+                mms_row.datatype = prev_line.datatype
+                mms_row.output_name = f"{idx}_HOLD_" + prev_line.name
+                mms_row.is_hold = True
+
+            rows_dict[(idx, mms_row.name)] = mms_row
+            rows_list.append(mms_row)
+
+        assert len(rows_dict) == len(rows_list)
 
         # sorts the entries according to the "framestart"
         # TODO -- actually useless if the times are given in relative mode.
-        glosses = OrderedDict(sorted(glosses.items(), key=lambda x: x[1].timing()[0]))
+        rows_ordered_dict = OrderedDict(sorted(rows_dict.items(), key=lambda x: x[1].timing()[0]))
 
-        return MMS(rows=glosses, generated_root=self._dictionary_root, inflections_availability=inflections_availability)
+        return MMS(rows=rows_ordered_dict, generated_root=self._dictionary_root, inflections_availability=inflections_availability)
 
 
 # TODO -- Convert this into a test unit
