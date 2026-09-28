@@ -22,3 +22,6 @@ MMS-Examples/*.gif
 # If you update the assets
 *.blend1
 *.blend2
+
+# AI stuff
+CLAUDE.md

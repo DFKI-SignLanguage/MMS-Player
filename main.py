@@ -447,32 +447,32 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     if mms.inflections_availability_dict["torso"]:
         ik_target_config_list.append(ik_config.torso)
-        print("Added Torso Inflector.")
+        logger.info("Added Torso Inflector.")
 
     if mms.inflections_availability_dict["head"]:
         ik_target_config_list.append(ik_config.head)
-        print("Added Head Inflector.")
+        logger.info("Added Head Inflector.")
 
     if mms.inflections_availability_dict["shoulders"]:
         ik_target_config_list.append(ik_config.shoulders.dom)
         ik_target_config_list.append(ik_config.shoulders.ndom)
-        print("Added two Shoulder Inflectors")
+        logger.info("Added two Shoulder Inflectors")
 
     if mms.inflections_availability_dict["domhandreloc"]:
         ik_target_config_list.append(ik_config.hands.dom.loc)
-        print("Added dominant hand trajectory inflector.")
+        logger.info("Added dominant hand trajectory inflector.")
 
     if mms.inflections_availability_dict["domhandrot"]:
         ik_target_config_list.append(ik_config.hands.dom.rot)
-        print("Added dominant hand rotation inflector.")
+        logger.info("Added dominant hand rotation inflector.")
 
     if mms.inflections_availability_dict["ndomhandreloc"]:
         ik_target_config_list.append(ik_config.hands.ndom.loc)
-        print("Added non-dominant hand trajectory inflector.")
+        logger.info("Added non-dominant hand trajectory inflector.")
 
     if mms.inflections_availability_dict["ndomhandrot"]:
         ik_target_config_list.append(ik_config.hands.ndom.rot)
-        print("Added non-dominant hand rotation inflector.")
+        logger.info("Added non-dominant hand rotation inflector.")
 
     if arguments.without_inflection:
         ik_target_config_list.clear()
