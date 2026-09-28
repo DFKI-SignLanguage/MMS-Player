@@ -207,48 +207,50 @@ class Glue:
 
         for row_idx in self.mms.row_indices:
 
+            mms_row = self.mms[row_idx]
+
             if use_rel_time:
-                start = last_gloss_end + self.mms[row_idx].transition()
-                duration_or_prop, is_relative = self.mms[row_idx].duration()
+                start = last_gloss_end + mms_row.transition()
+                duration_or_prop, is_relative = mms_row.duration()
                 if is_relative:
                     # In this case the duration is a fraction
                     assert 0 <= duration_or_prop
                     # Compute the estimated duration according to the sign duration
-                    fs, fe = self.mms[row_idx].original_frame_range
+                    fs, fe = mms_row.original_frame_range
                     dur_orig = (fe - fs)
                     duration_or_prop = dur_orig * duration_or_prop
 
                 end = start + duration_or_prop
             else:
-                start, end = self.mms[row_idx].timing()
+                start, end = mms_row.timing()
                 # We start filling our timeline from frame 1
                 start += 1
                 end += 1
 
-            logger.info(f"Merging gloss {self.mms[row_idx].output_name} in frames from {start} to {end}")
+            logger.info(f"Merging gloss {mms_row.output_name} in frames from {start} to {end}")
 
             # For a <HOLD> row, `.name` has been overwritten (in ensure_mocap_data_files()) to the
             # held gloss's name, so that the mocap file path resolves correctly. Report "<HOLD>"
             # instead, so the panel reflects what's actually being realized for this row.
-            gloss_name = "<HOLD>" if self.mms[row_idx].is_hold else self.mms[row_idx].name
+            gloss_name = "<HOLD>" if mms_row.is_hold else mms_row.name
             self.gloss_timeline.append(
                 GlossSegment(index=row_idx[0], name=gloss_name, start_frame=start, end_frame=end)
             )
 
-            if self.mms[row_idx].is_hold:
+            if mms_row.is_hold:
                 # Should copy the animation here and update the
                 #prev_gloss_index = gloss[0] - 1
                 #prev_gloss_id = self.mms.glosses[prev_gloss_index]
                 # end = self.mms[gloss].duration()[0]
                 end_frame = self.perform_hold(
                     target_action=self.target_action,
-                    source_action=bpy.data.actions[f"inflected_{self.mms[row_idx].output_name}"],  # TODO -- somehow remove this hard-coded name
+                    source_action=bpy.data.actions[f"inflected_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name
                     start=start,
                     end=end
                 )
                 end_frame = self.perform_hold(
                     target_action=self.target_shapekeys_action,
-                    source_action=bpy.data.actions[f"resampled_blendshapes_{self.mms[row_idx].output_name}"],  # TODO -- somehow remove this hard-coded name
+                    source_action=bpy.data.actions[f"resampled_blendshapes_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name
                     start=start,
                     end=end
                 )
@@ -257,13 +259,13 @@ class Glue:
                 # Combine the animation and get the new end_frame
                 end_frame = self.append_action(
                     target_action=self.target_action,
-                    source_action=bpy.data.actions[f"inflected_{self.mms[row_idx].output_name}"],  # TODO -- somehow remove this hard-coded name
+                    source_action=bpy.data.actions[f"inflected_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name
                     start=start
                 )
 
                 end_frame_shapekeys = self.append_action(
                     target_action=self.target_shapekeys_action,
-                    source_action=bpy.data.actions[f"resampled_blendshapes_{self.mms[row_idx].output_name}"],  # TODO -- somehow remove this hard-coded name
+                    source_action=bpy.data.actions[f"resampled_blendshapes_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name
                     start=start
                 )
 
