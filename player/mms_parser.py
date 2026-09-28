@@ -202,29 +202,29 @@ class MMS:
     """MMS table representation.
     
     Attributes:
-        mms: the MMS table which is an ordered dict of items sorted according to time
-        glosses: A list of consisting of row id and corresponding gloss_id.
+        rows_map: the MMS table which is an ordered dict of items sorted according to time. key = tuple(int, str), key = MMSLine
+        row_indices: A list of time-ordered indices of the mms rows: List[Tuple[int, str]]
         inflections_availability_dict: Contains the information if given mms data is present or not.
     """
 
     def __init__(self,
-                 mms: Dict[Tuple[int, str], MMSLine],
+                 rows: Dict[Tuple[int, str], MMSLine],
                  generated_root: Path,
                  inflections_availability: Dict[str, bool]):
 
-        self.mms: Dict[Tuple[int, str], MMSLine] = mms
-        self.glosses: List[Tuple[int, str]] = list(mms.keys())
+        self.rows_map: Dict[Tuple[int, str], MMSLine] = rows
+        self.row_indices: List[Tuple[int, str]] = list(rows.keys())
         self.generated_root: Path = generated_root
         self.inflections_availability_dict: Dict[str, bool] = inflections_availability
 
     def __getitem__(self, key: Tuple[int, str]) -> MMSLine:
         """Access the MMS line using the given key."""
-        if key not in self.mms:
+        if key not in self.rows_map:
             raise KeyError(f"{key} not found in the mms")
-        return self.mms[key]
+        return self.rows_map[key]
 
     def __repr__(self):
-        return f"MMS({self.glosses})"
+        return f"MMS({self.row_indices})"
 
     def ensure_mocap_data_files(self) -> None:
         """
@@ -234,7 +234,7 @@ class MMS:
         """
         
         pattern = r'<(.*?)>'
-        for num, idx_and_gloss in enumerate(self.glosses):
+        for num, idx_and_gloss in enumerate(self.row_indices):
 
             mmsline = self[idx_and_gloss]
 
@@ -243,7 +243,7 @@ class MMS:
             if len(matches) > 0 and matches[0] == "HOLD":
                 print(num, "FOUND HOLD")
                 # TODO -- Why for HOLD the path is set to the path of the previous gloss? And if the HOLD is the first sign in the MMS, it is OK to leave it empty?
-                prev_line = self[self.glosses[num - 1]]
+                prev_line = self[self.row_indices[num - 1]]
                 # Override some mmsline properties
                 mmsline.name = prev_line.name
                 mmsline.datatype = prev_line.datatype
@@ -313,7 +313,7 @@ class MMSParser:
         # TODO -- actually useless if the times are given in relative mode.
         glosses = OrderedDict(sorted(glosses.items(), key=lambda x: x[1].timing()[0]))
 
-        return MMS(mms=glosses, generated_root=self._dictionary_root, inflections_availability=inflections_availability)
+        return MMS(rows=glosses, generated_root=self._dictionary_root, inflections_availability=inflections_availability)
 
 
 # TODO -- Convert this into a test unit
@@ -327,7 +327,7 @@ if __name__ == "__main__":
     args.generated_root = os.environ["AVASAG_CORPUS_DIR"] + "/generated"
     parser = MMSParser(args.mms_file, args.generated_root)
     parsed_mms = parser.parse()
-    for mms_gloss in parsed_mms.glosses:
+    for mms_gloss in parsed_mms.row_indices:
         print("========================================")
         print(f"Using {parsed_mms[mms_gloss].output_name}")
         print("Timing: ", parsed_mms[mms_gloss].timing())

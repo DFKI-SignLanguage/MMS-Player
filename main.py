@@ -422,9 +422,14 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # Compose the MoCap file names and check for their availability
     mms.ensure_mocap_data_files()
 
-    for gloss in mms.glosses:
-        mmsline = mms[gloss]
+    for row_idx in mms.row_indices:
+        mmsline = mms[row_idx]
+
+        # If the "gloss" is <HOLD>, the path comes from the previous gloss
         assert mmsline.path is not None
+        if not mmsline.path.exists():
+            raise Exception(f"File '{mms[row_idx].path}' not found for gloss {row_idx}.")
+
 
     #
     # READ INFLECTION CONFIGURATION
@@ -511,16 +516,11 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     # Iterate on MMS rows
     # For each row, create a new action with the inflected gloss animation
-    for gloss in mms.glosses:
+    for row_idx in mms.row_indices:
 
-        mmsline = mms[gloss]
+        mmsline = mms[row_idx]
 
-        logger.info(f"Processing gloss {gloss} from file {mmsline.path}")
-
-        # If the "gloss" is <HOLD>, the path comes from the previous gloss
-        assert mmsline.path is not None
-        if not mmsline.path.exists():
-            raise Exception(f"File '{mms[gloss].path}' not found for gloss {gloss}.")
+        logger.info(f"Processing gloss {row_idx} from file {mmsline.path}")
 
         # TODO -- in case of HOLD, now we are essentially resampling the whole action of the previous gloss.
         #         We could optimize it with an ad-hoc branch that simply copies two times the last frame of the previous action.
@@ -567,12 +567,12 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         inflector = InflectionDirector(target_armature=inflected_armature,
                                src_armature_name=resampled_armature.name,
                                target_configs=ik_target_config_list,
-                               idx=gloss[0])
+                               idx=row_idx[0])
         inflector.setup_chain(
             source_armature=resampled_armature,
             target_armature=inflected_armature,
             inflected_action_name=f"inflected_{mmsline.output_name}",
-            mms_line=mms[gloss],
+            mms_line=mms[row_idx],
             without_inflection=arguments.without_inflection,
         )
 
@@ -614,8 +614,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     #
     # For each MMS line, the inflected action has been created
-    for gloss in mms.glosses:
-        mmsline = mms[gloss]
+    for row_idx in mms.row_indices:
+        mmsline = mms[row_idx]
         # print("Expected inflected action presence ", "inflected_" + mmsline.output_name)
         assert "inflected_" + mmsline.output_name in bpy.data.actions
         assert "resampled_blendshapes_" + mmsline.output_name in bpy.data.actions
@@ -664,8 +664,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     # Take reference to the first gloss and their created actions.
     # They will be used as reference to create the fcurves in the target actions.
-    gloss0 = mms.glosses[0]
-    mmsline0 = mms[gloss0]
+    row_idx0 = mms.row_indices[0]
+    mmsline0 = mms[row_idx0]
 
     ref_action = bpy.data.actions["inflected_" + mmsline0.output_name]
     ref_shapekeys_action = bpy.data.actions["resampled_blendshapes_" + mmsline0.output_name]
