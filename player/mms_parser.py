@@ -46,7 +46,7 @@ class MMSLine:
         self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
 
         # Filled later while scanning or loading the blend files
-
+        # TODO -- These following fields would actually be better moved another MMSLineAux class, to limit side effects.
         self.path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
         self.original_frame_range: Tuple[float, float] = None
         self.resampled_frame_range: Tuple[float, float] = None

@@ -23,8 +23,6 @@ import mathutils
 import tempfile
 from pathlib import Path
 
-from typing import List, Tuple
-
 
 def select_object(bpy_object):
     """Select the object"""
@@ -64,12 +62,13 @@ def select_bone(bone):
     bone.select_tail = True
 
 
-def duplicate_obj(src_obj: bpy.types.Object, name: str) -> bpy.types.Object:
-    """Duplicate an armature object and its data, without touching its animation data.
 
-    :param src_armature: the armature object to duplicate.
-    :param name: the name to assign to both the duplicated object and its armature data.
-    :return: the reference to the armature object copy.
+def duplicate_obj(src_obj: bpy.types.Object, name: str) -> bpy.types.Object:
+    """Duplicate an object and its data, without touching its animation data.
+
+    :param src_obj: the object to duplicate.
+    :param name: the name to assign to both the duplicated object and its data.
+    :return: the reference to the object copy.
     """
 
     new_armature = src_obj.copy()
@@ -79,6 +78,29 @@ def duplicate_obj(src_obj: bpy.types.Object, name: str) -> bpy.types.Object:
     new_armature.data.name = name
 
     return new_armature
+
+
+def duplicate_armature(armature_obj: bpy.types.Object, named_action: bpy.types.Action) -> bpy.types.Object:
+        """Duplicates the given armature and its data, and assigns the given action to its animation data.
+        Also, assigns to the duplicated armature and its copied data the same name of the action.
+
+        :param target_armature_obj: the armature to duplicate (the character to be rendered).
+        :param action: the action to assign to the copy.
+        :return: the reference to the armature copy.
+        """
+
+        new_armature = duplicate_obj(src_obj=armature_obj, name=named_action.name)
+
+        new_armature.animation_data_clear()
+        new_armature.animation_data_create()
+        assert new_armature.animation_data is not None
+
+        new_armature.animation_data.action = named_action
+
+        bpy.context.collection.objects.link(new_armature)
+        bpy.context.view_layer.update()
+
+        return new_armature
 
 
 def add_copy_constraints(armature, name: str, subtarget: str):

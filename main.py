@@ -30,7 +30,7 @@ from player.action_utils import ActionOperator
 from player.merge import Glue, GlossSegment
 from player.inflection import InflectionDirector
 from player.inflection import IKTargetConfig
-from player.bpy_utils import select_object
+from player.bpy_utils import select_object, duplicate_armature
 from player.logging import logger
 from player.logging import enable_log_to_stdout
 from player import extract
@@ -553,12 +553,17 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         assert "resampled_" + mmsline.output_name in bpy.data.actions
 
         # Create an armature referencing the resampled action
-        resampled_armature = action_operator.create_resampled_armature(target_armature)
+        # TODO -- Consider to reuse the target armature and assign the resampled action, instead of duplicating the armature for each gloss-action to playback.
+        resampled_armature = duplicate_armature(armature_obj=target_armature, named_action=resampled_action)
+
         # Create a new armature referencing a new action for the inflected sign
-        inflected_armature = action_operator.create_inflected_armature(target_armature)
+        inflected_action = bpy.data.actions.new(name=f"inflected_{mmsline.output_name}")
+        inflected_armature = duplicate_armature(armature_obj=target_armature, named_action=inflected_action)
         # Here an empty target "inflected_..." action has been created
         assert f"inflected_{mmsline.output_name}" in bpy.data.actions
 
+        #
+        # Setup the inflection procedure
         inflector = InflectionDirector(target_armature=inflected_armature,
                                src_armature_name=resampled_armature.name,
                                target_configs=ik_target_config_list,
@@ -586,12 +591,14 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         # The source armature: only its actions are needed downstream.
         src_armature_data = resampled_armature.data
+        assert type(src_armature_data) == bpy.types.Armature
         bpy.data.objects.remove(resampled_armature)
         bpy.data.armatures.remove(src_armature_data)
 
         # The inflected armature too, unless --extract still needs it by name afterwards.
         if not arguments.extract:
             inflected_armature_data = inflected_armature.data
+            assert type(inflected_armature_data) == bpy.types.Armature
             bpy.data.objects.remove(inflected_armature)
             bpy.data.armatures.remove(inflected_armature_data)
 
@@ -626,6 +633,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
             arguments.without_fingers,
         )
         return
+
 
     #
     # Finally we merge individual signs to produce the final utterance of the full sentence.
@@ -708,6 +716,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         )
 
 
+    #
     # Finalize the scene and export as MP4, BVH, FBX, or binary blender scene
     post_bake(
         armature_obj_name=glue.armature_obj.name,

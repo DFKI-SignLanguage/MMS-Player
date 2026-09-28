@@ -20,12 +20,10 @@
 
 import math
 import bpy
-from pathlib import Path
 from typing import Tuple, Union, Optional
 
 from .logging import logger
 from .mms_parser import MMSLine
-from . import bpy_utils
 
 # Naming convention prefixes for the actions present in a source gloss blend file.
 BODY_ACTION_PREFIX = "updated_"
@@ -147,39 +145,3 @@ class ActionOperator:
         assert target_action_name in bpy.data.actions
 
         return sampled_action
-
-
-    def create_resampled_armature(self, template_armature_obj: bpy.types.Object) -> bpy.types.Object:
-        """Duplicates the given armature to carry this gloss's resampled action.
-        Plays the role of the source/dictionary armature during the inflection process.
-        :param target_armature_obj: the armature to duplicate (the character to be rendered).
-        :return: the reference to the armature copy.
-        """
-        new_armature = bpy_utils.duplicate_obj(template_armature_obj, f"resampled_{self.mms_line.output_name}")
-
-        new_armature.animation_data_clear()
-        new_armature.animation_data_create()
-        resampled_action_name = "resampled_" + self.mms_line.output_name
-        new_armature.animation_data.action = bpy.data.actions[resampled_action_name]
-
-        bpy.context.collection.objects.link(new_armature)
-        bpy.context.view_layer.update()
-
-        return new_armature
-
-    def create_inflected_armature(self, template_armature_obj: bpy.types.Object) -> bpy.types.Object:
-        """Creates a copy of the given armature, to be inflected.
-        :param target_armature_obj: the armature to duplicate (the character to be rendered).
-        :return: the reference to the armature copy.
-        """
-        new_armature = bpy_utils.duplicate_obj(template_armature_obj, f"inflected_{self.mms_line.output_name}")
-
-        new_armature.animation_data_clear()
-        new_armature.animation_data_create()
-        new_action = bpy.data.actions.new(name=f"inflected_{self.mms_line.output_name}")
-        new_armature.animation_data.action = new_action
-
-        bpy.context.collection.objects.link(new_armature)
-        bpy.context.view_layer.update()
-
-        return new_armature
