@@ -19,21 +19,12 @@
 #
 
 import bpy
-import json
 
 from dataclasses import dataclass
 from typing import Optional, List
 from .mms_parser import MMS
 from .logging import logger
-from . import bpy_utils
 
-
-def load_json(fp):
-    """Read json file and load it."""
-    with open(fp, "r") as stream:
-        dump = json.load(stream)
-        stream.close()
-    return set(dump["ignore_list"])
 
 
 @dataclass
