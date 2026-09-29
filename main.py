@@ -25,7 +25,7 @@ MMS_PLAYER_ROOT_PATH = Path(__file__).resolve().parent
 sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 
 
-from player.mms_parser import MMSParser
+from player.mms_parser import MMSParser, MMSLineDataInfo
 from player.action_utils import ActionOperator
 from player.merge import Glue, GlossSegment
 from player.inflection import InflectionDirector
@@ -35,7 +35,7 @@ from player.logging import logger
 from player.logging import enable_log_to_stdout
 from player import extract
 
-from typing import List, Optional
+from typing import Optional, Tuple, List, Dict
 
 
 # The template Blender scene containing the character, the light setup, and some default rendering parameters
@@ -335,7 +335,7 @@ def post_bake(
     if anim_json_path:
         from player.anim_exporter import export_animation
         print(f"Exporting animation to JSON file '{anim_json_path}' ...")
-        export_animation(armature_obj=armature, bones_list=ANIMATED_BONE_LIST, out_json_path=anim_json_path)
+        export_animation(armature_obj=armature, bones_list=ANIMATED_BONE_LIST, out_json_path=Path(anim_json_path))
 
     bpy.context.scene.frame_set(1)
     armature.hide_set(True)
@@ -402,7 +402,9 @@ def initialize_target_armature():
             f"The following bones listed in '{ANIMATED_BONES_LIST_PATH}' are missing from the target armature: {missing_bone_names}"
         )
 
-
+#
+# This is the main MMS realization pipeline method
+#
 def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     """Execute the realization pipeline.
 
@@ -413,22 +415,25 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     4. Run the animation production pipeline.
     5. Export or render the resulting animation.
     """
-    mms_file = arguments.source_mms_file
-    dictionary_root = arguments.dictionary_dir
-    sentence_id = Path(mms_file).stem
+    mms_file = Path(arguments.source_mms_file)
+    dictionary_root = Path(arguments.dictionary_dir)
 
     # Read the MMS from the given MMS file.
-    mms = MMSParser(mms_file, dictionary_root).parse()
-    # Compose the MoCap file names and check for their availability
-    mms.ensure_mocap_data_files()
+    mms = MMSParser(mms_file).parse()
+
+    # Instantiating auxiliary info for each MMSLine
+    rows_info: Dict[Tuple[int, str], MMSLineDataInfo] = {}
 
     for row_idx in mms.row_indices:
+        logger.info(f"Checking info for '{row_idx}'")
         mmsline = mms[row_idx]
 
-        # If the "gloss" is <HOLD>, the path comes from the previous gloss
-        assert mmsline.path is not None
-        if not mmsline.path.exists():
-            raise Exception(f"File '{mms[row_idx].path}' not found for gloss {row_idx}.")
+        # Instantiate a new euxiliary row data info
+        mms_line_info = MMSLineDataInfo(mms_line=mmsline)
+        rows_info[row_idx] = mms_line_info
+
+        # Compose the Blender file name and check for its availability
+        mms_line_info.compose_file_paths(dictionary_root=dictionary_root)
 
 
     #
@@ -519,16 +524,17 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     for row_idx in mms.row_indices:
 
         mmsline = mms[row_idx]
+        mmsline_info = rows_info[row_idx]
 
-        logger.info(f"Processing gloss {row_idx} from file {mmsline.path}")
+        logger.info(f"Processing gloss {row_idx}")
 
         # TODO -- in case of HOLD, now we are essentially resampling the whole action of the previous gloss.
-        #         We could optimize it with an ad-hoc branch that simply copies two times the last frame of the previous action.
+        #         We could optimize it with an ad-hoc execution branch that simply copies two times the last frame of the previous action.
 
         # Pass it through the ActionOperator class and prepare the animation for further
         # processing. Since we want to have the same number of frames as the source
         # sentence, we are resampling the animation frames.
-        action_operator = ActionOperator(mmsline)
+        action_operator = ActionOperator(mmsline_info)
 
         action_operator.load_actions()
 
@@ -538,7 +544,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         if not arguments.ignore_gloss_duration:
             src_action = action_operator.imported_main_armature_action
-            mmsline.original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
+            mmsline_info.maingloss_original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
 
             if arguments.use_relative_time:
                 resampled_action = action_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
@@ -547,7 +553,13 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
                 resampled_action = action_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
                 action_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=action_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
 
-            mmsline.resampled_frame_range = resampled_action.frame_range[0], resampled_action.frame_range[1]
+            # After resampling, the frame range of the actions has been approximated to the integer frame position.
+            resampled_frame_range = resampled_action.frame_range
+            logger.info(f"Resampled_range: {resampled_frame_range}")
+            assert resampled_frame_range[0] == int(resampled_frame_range[0])
+            assert resampled_frame_range[0] == 1.0
+            assert resampled_frame_range[1] == int(resampled_frame_range[1])
+            mmsline_info.resampled_frame_range = int(resampled_frame_range[0]), int(resampled_frame_range[1])
 
         # Here the "resampled_..." action has been created
         assert "resampled_" + mmsline.output_name in bpy.data.actions
@@ -622,7 +634,9 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     #
     # Call the data extraction if requested
+    # TODO -- check this block, if really needed. Why is sentence id needed? It seems to be anyway wrong.
     if arguments.extract:
+        sentence_id = Path(mms_file).stem
         print("Extracting the data to: ", arguments.extract_path)
         extract.run(
             mms,
@@ -680,6 +694,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     assert bpy.context.scene.objects[TARGET_ARMATURE_NAME].animation_data.action.name == TARGET_ACTION_NAME
 
     select_object(bpy.data.objects[TARGET_ARMATURE_NAME])
+
     assert bpy.context.active_object is not None
     assert bpy.context.active_object.data is not None
 
@@ -693,7 +708,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     #
     # Put all the inflected glosses/actions into a final timeline
-    glue.realize_mms(use_rel_time=arguments.use_relative_time)
+    glue.realize_mms(rows_info=rows_info, use_rel_time=arguments.use_relative_time)
 
 
     # Check if the bones animated in the target_action_name also appear in the ANIMATED_BONES_LIST_PATH.

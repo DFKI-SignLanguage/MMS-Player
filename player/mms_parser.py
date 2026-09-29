@@ -46,12 +46,6 @@ class MMSLine:
         self.is_hold: bool = False  # Set to true if the gloss in this lione is <HODL>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
         self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
 
-        # Filled later while scanning or loading the blend files
-        # TODO -- These following fields would actually be better moved another MMSLineAux class, to limit side effects.
-        self.path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
-        self.original_frame_range: Optional[Tuple[float, float]] = None
-        self.resampled_frame_range: Optional[Tuple[float, float]] = None
-
     def __getitem__(self, key):
         return self.line_data[self.store_index[key]]
 
@@ -140,12 +134,12 @@ class MMSLine:
         return scale
 
     def timing(self) -> Tuple[float, float]:
-        """Start and the end frame in the as in the original sentence."""
+        """Start and the end frame of the gloss in the timeline."""
         # TODO -- Not sure this is the best formula. If a sign duration is less than 1/FPS, frame start and frame end might be inverted!!!
         # E.g.: math.ceil(float(1.61) * 60), math.floor(float(1.616) * 60) --> (97, 96)
-        return math.ceil(float(self["framestart"]) * 60), math.floor(
-            float(self["frameend"]) * 60
-        )
+        return \
+            math.ceil(float(self["framestart"]) * 60),\
+            math.floor(float(self["frameend"]) * 60)
 
     def head_rot(self) -> Optional[mathutils.Quaternion]:
         """Rotation of the head."""
@@ -200,6 +194,38 @@ class MMSLine:
         return math.ceil(float(duration) * 60), False
 
 
+class MMSLineDataInfo:
+    """Auxiliary information to an MMSLine, holding information that can be retrieved only at run-time.
+    """
+
+    def __init__(self, mms_line: MMSLine):
+
+        self.mms_line = mms_line
+
+        # Filled later while scanning or loading the blend files
+        self.maingloss_path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
+
+        self.maingloss_original_frame_range: Optional[Tuple[float, float]] = None
+        # TODO --  we will need to store also the framerate of the source Blenderr file, to proper resamplings among different FPS.
+        # self.maingloss_original_FPS: float
+
+        self.resampled_frame_range: Optional[Tuple[int, int]] = None
+
+    def compose_file_paths(self, dictionary_root: Path) -> None:
+        """
+        Compose the gloss path and verify that the path exists.
+        If the required file doesn't exist, an Exception is thrown.
+        """
+
+        maingloss_blend_file = f"{self.mms_line.name}.blend"
+
+        self.maingloss_path = dictionary_root / self.mms_line.datatype / "trimmed" / maingloss_blend_file
+        assert self.maingloss_path is not None
+
+        if not self.maingloss_path.exists():
+            raise Exception(f"Expected gloss file '{self.maingloss_path}' not present for '{self.mms_line.name}'.")
+
+
 class MMS:
     """MMS table representation.
     
@@ -211,12 +237,10 @@ class MMS:
 
     def __init__(self,
                  rows: Dict[Tuple[int, str], MMSLine],
-                 generated_root: Path,
                  inflections_availability: Dict[str, bool]):
 
         self.rows_map: Dict[Tuple[int, str], MMSLine] = rows
         self.row_indices: List[Tuple[int, str]] = list(rows.keys())
-        self.generated_root: Path = generated_root
         self.inflections_availability_dict: Dict[str, bool] = inflections_availability
 
     def __getitem__(self, key: Tuple[int, str]) -> MMSLine:
@@ -228,41 +252,14 @@ class MMS:
     def __repr__(self):
         return f"MMS({self.row_indices})"
 
-    def ensure_mocap_data_files(self) -> None:
-        """
-        For each GLOSS in the MMS, as we compose the gloss path and we verify that the path exists.
-        Also, saves the path for each gloss file in the MMS table.
-        If the required file doesn't exist, an Exception is thrown.
-        """
-        
-        for idx_and_gloss in self.row_indices:
-
-            mmsline = self[idx_and_gloss]
-
-            motion_file = f"{mmsline.name}.blend"
-
-            gloss_path = (
-                Path(self.generated_root)
-                .joinpath(mmsline.datatype)
-                .joinpath("trimmed")
-                .joinpath(motion_file)
-            )
-
-            if not gloss_path.exists():
-                raise Exception(f"Expected motion capture file '{gloss_path}' not present for {mmsline.name}.")
-
-            # Set the Path to the Blender scene.
-            mmsline.path = gloss_path
-
 
 class MMSParser:
     """The parser for MMS data."""
 
-    def __init__(self, mms_file: str, dictionary_dir: str):
-        self._mms_file = Path(mms_file)
-        self._dictionary_root = Path(dictionary_dir)
+    def __init__(self, mms_file: Path):
+        self._mms_file = mms_file
 
-    def parse(self):
+    def parse(self) -> MMS:
         """Parse the mms file and return the MMS object.
         
         In order to parse the data:
@@ -322,7 +319,7 @@ class MMSParser:
         # TODO -- actually useless if the times are given in relative mode.
         rows_ordered_dict = OrderedDict(sorted(rows_dict.items(), key=lambda x: x[1].timing()[0]))
 
-        return MMS(rows=rows_ordered_dict, generated_root=self._dictionary_root, inflections_availability=inflections_availability)
+        return MMS(rows=rows_ordered_dict, inflections_availability=inflections_availability)
 
 
 # TODO -- Convert this into a test unit
@@ -330,11 +327,10 @@ if __name__ == "__main__":
     # Simple test to verify whether the parser is working or not
     parser = argparse.ArgumentParser()
     parser.add_argument("--mms-file", type=str)
-    parser.add_argument("--generated-root", type=str)
     args = parser.parse_args()
     args.mms_file = os.environ["AVASAG_CORPUS_DIR"] + "/generated/mms/0009.mms"
     args.generated_root = os.environ["AVASAG_CORPUS_DIR"] + "/generated"
-    parser = MMSParser(args.mms_file, args.generated_root)
+    parser = MMSParser(args.mms_file)
     parsed_mms = parser.parse()
     for mms_gloss in parsed_mms.row_indices:
         print("========================================")

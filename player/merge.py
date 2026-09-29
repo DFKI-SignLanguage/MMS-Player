@@ -21,8 +21,8 @@
 import bpy
 
 from dataclasses import dataclass
-from typing import Optional, List
-from .mms_parser import MMS
+from typing import Optional, Tuple, List, Dict
+from .mms_parser import MMS, MMSLineDataInfo
 from .logging import logger
 
 
@@ -57,8 +57,8 @@ class Glue:
     ):
         """
         :param mms: MMS table containing all relevant gloss information.
-        :param target_armature_obj: The armature object that will be animated with the sequence of glosses (skeleton).
-        :param target_mesh_obj: The mesh object that will be animated with the sequence of glosses (mesh).
+        :param target_armature_obj: The armature object that will be animated with the sequence of glosses (Skeleton).
+        :param target_mesh_objs: The list of mesh objects that will be animated with the sequence of glosses (ShapeKeys).
         :param target_action_name: The name of new action to write the keyframes for the armature.
         :param target_shapekeys_action_name: The name of new action to write the keyframes for the mesh animation.
         """
@@ -188,7 +188,7 @@ class Glue:
 
         return end
 
-    def realize_mms(self, use_rel_time: bool = False):
+    def realize_mms(self, rows_info: Dict[Tuple[int, str], MMSLineDataInfo], use_rel_time: bool):
         """Generate the timing data for individual glosses and merge them into final track.
         """
 
@@ -199,19 +199,15 @@ class Glue:
         for row_idx in self.mms.row_indices:
 
             mms_row = self.mms[row_idx]
+            mms_row_info = rows_info[row_idx]
 
             if use_rel_time:
                 start = last_gloss_end + mms_row.transition()
-                duration_or_prop, is_relative = mms_row.duration()
-                if is_relative:
-                    # In this case the duration is a fraction
-                    assert 0 <= duration_or_prop
-                    # Compute the estimated duration according to the sign duration
-                    fs, fe = mms_row.original_frame_range
-                    dur_orig = (fe - fs)
-                    duration_or_prop = dur_orig * duration_or_prop
 
-                end = start + duration_or_prop
+                assert mms_row_info.resampled_frame_range is not None
+                duration = mms_row_info.resampled_frame_range[1] - mms_row_info.resampled_frame_range[0] + 1
+                end = start + duration
+
             else:
                 start, end = mms_row.timing()
                 # We start filling our timeline from frame 1
@@ -229,10 +225,7 @@ class Glue:
             )
 
             if mms_row.is_hold:
-                # Should copy the animation here and update the
-                #prev_gloss_index = gloss[0] - 1
-                #prev_gloss_id = self.mms.glosses[prev_gloss_index]
-                # end = self.mms[gloss].duration()[0]
+
                 end_frame = self.perform_hold(
                     target_action=self.target_action,
                     source_action=bpy.data.actions[f"inflected_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name

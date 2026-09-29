@@ -23,7 +23,7 @@ import bpy
 from typing import Tuple, Union, Optional
 
 from .logging import logger
-from .mms_parser import MMSLine
+from .mms_parser import MMSLineDataInfo
 
 # Naming convention prefixes for the actions present in a source gloss blend file.
 BODY_ACTION_PREFIX = "updated_"
@@ -38,9 +38,9 @@ class ActionOperator:
     3. TODO - Mix several actions together
     """
 
-    def __init__(self, mms_line: MMSLine) -> None:
+    def __init__(self, mms_line_info: MMSLineDataInfo) -> None:
 
-        self.mms_line = mms_line
+        self.mms_line_info = mms_line_info
 
         self.imported_main_armature_action: Optional[bpy.types.Action] = None
         self.imported_main_shapekeys_action: Optional[bpy.types.Action] = None
@@ -52,7 +52,10 @@ class ActionOperator:
         This code copies the assets from the library and links it into the current blender context.
         """
 
-        blend_path = self.mms_line.path
+        blend_path = self.mms_line_info.maingloss_path
+
+        if blend_path is None:
+            raise Exception(f"No file path stored for '{self.mms_line_info.mms_line.output_name}'.")    
 
         logger.info(f"Loading GLOSS animation data from '{blend_path}' ...")
 
@@ -64,13 +67,13 @@ class ActionOperator:
 
         #
         # Find the main body action by its known naming convention.
-        body_action_name = BODY_ACTION_PREFIX + self.mms_line.name
+        body_action_name = BODY_ACTION_PREFIX + self.mms_line_info.mms_line.name
         if body_action_name not in bpy.data.actions:
             raise Exception(f"Body animation '{body_action_name}' not found in loaded scene.")
         body_action = bpy.data.actions[body_action_name]
 
         # Set the name of the imported action, avoiding duplicates and auto renaming in case of multiple glosses with the same name in the MMS
-        body_action.name = "imported_" + self.mms_line.output_name
+        body_action.name = "imported_" + self.mms_line_info.mms_line.output_name
 
         logger.info(f"Imported body action '{body_action.name}'")
 
@@ -80,13 +83,13 @@ class ActionOperator:
 
         #
         # Check for the presence of the Blendshape face animation
-        face_action_name = FACE_ACTION_PREFIX + self.mms_line.name
-        if self.mms_line.name != "<HOLD>" and face_action_name not in bpy.data.actions:
+        face_action_name = FACE_ACTION_PREFIX + self.mms_line_info.mms_line.name
+        if self.mms_line_info.mms_line.name != "<HOLD>" and face_action_name not in bpy.data.actions:
             raise Exception(f"Face animation '{face_action_name}' not found in loaded scene.")
 
         # Rename the action to a unique name
         face_action = bpy.data.actions[face_action_name]
-        face_action.name = "imported_blendshapes_" + self.mms_line.output_name
+        face_action.name = "imported_blendshapes_" + self.mms_line_info.mms_line.output_name
 
         # Store direct reference to the shapekeys/face action
         self.imported_main_shapekeys_action = face_action
