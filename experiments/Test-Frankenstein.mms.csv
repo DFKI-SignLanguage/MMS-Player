@@ -1,5 +1,5 @@
 maingloss,framestart,frameend,duration,transition,domarm,ndomarm
 ZUG,0,0,100%,1,,
-<HOLD>,0,0,100%,2,INDEX,
+<HOLD>,0,0,1,1,INDEX,
 ZUG,0,0,100%,2,,
 INDEX,0,0,100%,2,<HOLD>,
