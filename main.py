@@ -139,6 +139,14 @@ def add_options(arg_parser: argparse.ArgumentParser):
     )
 
     arg_parser.add_argument(
+        "--render-fps",
+        type=int,
+        required=False,
+        default=60,
+        help="The target frame per seconds (FPS) of the animation timeline."
+    )
+
+    arg_parser.add_argument(
         "--without-inflection",
         action="store_true",
         help="By default, all the inflections are applied. "
@@ -197,6 +205,7 @@ def add_options(arg_parser: argparse.ArgumentParser):
 def post_bake(
         armature_obj_name: str,
         action_name: str,
+        render_fps: float,
         render_size_x: int,
         render_size_y: int,
         mp4_path: Optional[str] = None,
@@ -264,7 +273,7 @@ def post_bake(
                             "was used). The panel will be added but will stay empty.")
         setup_gloss_panel(camera_obj=bpy.data.objects[RENDER_CAMERA_NAME], gloss_timeline=gloss_timeline or [])
 
-    bpy.context.scene.render.fps = 60
+    bpy.context.scene.render.fps = render_fps
     bpy.context.scene.render.image_settings.file_format = "FFMPEG"
     # bpy.context.scene.render.image_settings.file_format = 'PNG'
     bpy.context.scene.render.ffmpeg.format = "MPEG4"
@@ -415,10 +424,15 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     4. Run the animation production pipeline.
     5. Export or render the resulting animation.
     """
+
     mms_file = Path(arguments.source_mms_file)
     dictionary_root = Path(arguments.dictionary_dir)
+    render_fps = arguments.render_fps
+
+    logger.info(f"Realizing MMS using dictionary at '{dictionary_root}', setting an output at {render_fps} FPS.")
 
     # Read the MMS from the given MMS file.
+    logger.info(f"Parsing MMS from '{mms_file}' ...")
     mms = MMSParser(mms_file).parse()
 
     # Instantiating auxiliary info for each MMSLine
@@ -446,6 +460,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # The way items are added to the bone list defines the execution order for the
     # ik target.
 
+    logger.info(f"Reading Inflection configuration from '{CONFIG_PATH}'...")
     if not CONFIG_PATH.exists():
         raise Exception(f"The config '{CONFIG_PATH}' couldn't be located.")
 
@@ -487,7 +502,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     if arguments.without_inflection:
         ik_target_config_list.clear()
 
-    # Log the mms file
+    # Log information about the inflections
     logger.info("==================================")
     logger.info("MMS File: %s", mms_file)
     logger.info(f"List of IK target configurations ({len(ik_target_config_list)}):")
@@ -495,10 +510,11 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         logger.info("IK Target Config: %s", ik_target.dict)
     logger.info("==================================")
 
+    #
     # Remove all existing temporary objects from the scene
+    logger.info("Cleaning up scene and initializing target character ...")
     for obj in bpy.data.objects:
         bpy.data.objects.remove(obj)
-
     # Load the template scene containing the target character, to be animated later on.
     initialize_scene()
 
@@ -512,15 +528,21 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     assert TARGET_REYE_MESH_NAME in bpy.context.scene.objects
     assert TARGET_REYE_MESH_NAME in bpy.data.objects
 
+    #
     # Check the types and fix the bone names of the target armature
     initialize_target_armature()
 
-    # The target character's armature is duplicated per-gloss below, both to carry each gloss's own
-    # animation and to be inflected, so that no gloss blend needs to bring its own armature.
+    # This is the armature that will be used as reference for duplicates and will be associated to the final action containing the full MMS animation
     target_armature = bpy.data.objects[TARGET_ARMATURE_NAME]
 
     # Iterate on MMS rows
     # For each row, create a new action with the inflected gloss animation
+    #
+    # The gloss .blend files do not contain armatures.
+    # Hence, the target_armature is duplicated two times for each gloss:
+    # one to playback the resampled action,
+    # and one for inflected action.
+    logger.info(f"Processing {len(mms.row_indices)} MMS rows ...")
     for row_idx in mms.row_indices:
 
         mmsline = mms[row_idx]
@@ -542,6 +564,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         assert action_operator.imported_main_armature_action is not None
         assert action_operator.imported_main_shapekeys_action is not None
 
+        #
+        # Resample actions to a target frame range
         if not arguments.ignore_gloss_duration:
             src_action = action_operator.imported_main_armature_action
             mmsline_info.maingloss_original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
@@ -624,6 +648,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
             if stale_action is not None:
                 bpy.data.actions.remove(stale_action)
 
+    logger.info("MMS rows processed. Single gloss animations have been inflected.")
+
     #
     # For each MMS line, the inflected action has been created
     for row_idx in mms.row_indices:
@@ -637,7 +663,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # TODO -- check this block, if really needed. Why is sentence id needed? It seems to be anyway wrong.
     if arguments.extract:
         sentence_id = Path(mms_file).stem
-        print("Extracting the data to: ", arguments.extract_path)
+        logger.info(f"Extracting the data to: {arguments.extract_path} ...")
         extract.run(
             mms,
             sentence_id,
@@ -651,7 +677,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     #
     # Finally we merge individual signs to produce the final utterance of the full sentence.
-    logger.info("Merging inflected glosses into the final timeline...")
+    logger.info("Merging inflected glosses into the final timeline ...")
 
     target_armature = bpy.data.objects[TARGET_ARMATURE_NAME]
     target_face_mesh = bpy.data.objects[TARGET_FACE_MESH_NAME]
@@ -710,12 +736,15 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # Put all the inflected glosses/actions into a final timeline
     glue.realize_mms(rows_info=rows_info, use_rel_time=arguments.use_relative_time)
 
-
     # Check if the bones animated in the target_action_name also appear in the ANIMATED_BONES_LIST_PATH.
     # Emit a warning if there are bones that are animated but not listed in ANIMATED_BONES_LIST_PATH. Include the list of non expected bones.
     assert glue.target_action is not None
     target_action = glue.target_action
 
+    logger.info(f"Final animation realized. Frame range: {target_action.frame_range}.")    
+
+    #
+    # Checking bones coherence
     animated_bone_names = {
         fcurve.data_path.split('"')[1]
         for fcurve in target_action.fcurves
@@ -733,6 +762,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     #
     # Finalize the scene and export as MP4, BVH, FBX, or binary blender scene
+    logger.info("Post baking (save, render, export) ...")
     post_bake(
         armature_obj_name=glue.armature_obj.name,
         action_name=glue.target_action.name,
@@ -744,6 +774,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         render_size_pct=arguments.render_size_pct,
         render_size_x=arguments.res_x,
         render_size_y=arguments.res_y,
+        render_fps=render_fps,
         gloss_panel=arguments.gloss_panel,
         gloss_timeline=glue.gloss_timeline,
     )
