@@ -176,9 +176,11 @@ class MMSLine:
 
     def duration(self) -> Tuple[float, bool]:
         """Number of frames in the gloss.
-        :returns: A 2-tuple. The first is the duration, either: i) absolute value, in seconds;
-         or ii) as percentage of the original duration (ending with the % sign).
-          The second argument is True if the duration is a ratio (case ii)."""
+        :returns: A 2-tuple.
+        The first value is the duration, either:
+          i) absolute value, in seconds; or
+          ii) ratio of the original duration, in range [0.0,1.0].
+        The second value is True if the duration is a ratio (case ii)."""
 
         duration = self["duration"]
         if "%" in duration:
