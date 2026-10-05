@@ -194,25 +194,27 @@ class Glue:
 
         # `last_gloss_end` holds the last frame number of the previous gloss.
         # In relative time mode, combined with transition duration, it allows to compute the start of the next gloss.
-        last_gloss_end = 1
+        #last_gloss_end = 1
 
         for row_idx in self.mms.row_indices:
 
             mms_row = self.mms[row_idx]
             mms_row_info = rows_info[row_idx]
 
-            if use_rel_time:
-                start = last_gloss_end + mms_row.transition()
+            # if use_rel_time:
+            #     start = last_gloss_end + mms_row.transition()
 
-                assert mms_row_info.resampled_frame_range is not None
-                duration = mms_row_info.resampled_frame_range[1] - mms_row_info.resampled_frame_range[0] + 1
-                end = start + duration
+            #     assert mms_row_info.target_frame_range is not None
+            #     duration = mms_row_info.target_frame_range[1] - mms_row_info.target_frame_range[0] + 1
+            #     end = start + duration
 
-            else:
-                start, end = mms_row.timing()
-                # We start filling our timeline from frame 1
-                start += 1
-                end += 1
+            # else:
+            #     start, end = mms_row.timing()
+            #     # We start filling our timeline from frame 1
+            #     start += 1
+            #     end += 1
+            assert mms_row_info.target_frame_range is not None
+            start, end = mms_row_info.target_frame_range
 
             logger.info(f"Merging gloss {mms_row.output_name} in frames from {start} to {end}")
 
@@ -253,7 +255,7 @@ class Glue:
                     start=start
                 )
 
-            last_gloss_end = end
+            #last_gloss_end = end
 
             # We assume that the animation was already scaled. So the returned end_frame must be compatible with
             # the expected end frame. Compatible means +/- 1, according to rounding errors.

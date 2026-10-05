@@ -30,6 +30,23 @@ BODY_ACTION_PREFIX = "updated_"
 FACE_ACTION_PREFIX = "blendshapes_"
 
 
+def _all_ids() -> list[bpy.types.ID]:
+    """Return all the data-blocks currently present in bpy.data, regardless of their type."""
+
+    ids: list[bpy.types.ID] = []
+    for attr in dir(bpy.data):
+        coll = getattr(bpy.data, attr, None)
+        if isinstance(coll, bpy.types.bpy_prop_collection):
+            ids.extend(id_ for id_ in coll if isinstance(id_, bpy.types.ID))
+    return ids
+
+
+def _all_id_pointers() -> set[int]:
+    """Return the memory pointers of all the data-blocks currently present in bpy.data."""
+
+    return {id_.as_pointer() for id_ in _all_ids()}
+
+
 class ActionOperator:
     """This utility class has the methods to:
 
@@ -45,6 +62,8 @@ class ActionOperator:
         self.imported_main_armature_action: Optional[bpy.types.Action] = None
         self.imported_main_shapekeys_action: Optional[bpy.types.Action] = None
 
+        self.imported_scene_fps: float
+        self.imported_main_gloss_duration_secs: float
 
     def load_actions(self) -> None:
         """Load the gloss's actions into the scene.
@@ -62,8 +81,27 @@ class ActionOperator:
         if not blend_path.exists():
             raise Exception(f"Failed to find the library data '{str(blend_path)}'.")
 
+        # Take a snapshot of the existing data, so that we can identify (and later remove)
+        # everything that is brought in together with the appended scene.
+        pre_load_ids = _all_id_pointers()
+
         with bpy.data.libraries.load(str(blend_path)) as (data_from, data_to):
+            if len(data_from.scenes) == 0:
+                raise Exception(f"No scene found in '{str(blend_path)}'.")
             data_to.actions = data_from.actions
+            data_to.scenes = data_from.scenes[:1]
+
+        #
+        # Retrieve the frames-per-second of the source scene.
+        src_scene = data_to.scenes[0]
+        self.imported_scene_fps = src_scene.render.fps / src_scene.render.fps_base
+        logger.info(f"Imported scene FPS: {self.imported_scene_fps}")
+
+        # Remove the scene and all its dependencies (objects, collections, meshes, ...), keeping only the actions.
+        action_pointers = {action.as_pointer() for action in data_to.actions if action is not None}
+        ids_to_remove = [id_ for id_ in _all_ids()
+                         if id_.as_pointer() not in pre_load_ids and id_.as_pointer() not in action_pointers]
+        bpy.data.batch_remove(ids_to_remove)
 
         #
         # Find the main body action by its known naming convention.
@@ -94,9 +132,16 @@ class ActionOperator:
         # Store direct reference to the shapekeys/face action
         self.imported_main_shapekeys_action = face_action
 
+        #
+        # Timing calculations
+        main_gloss_frame_start, maingloss_frame_end = self.imported_main_armature_action.frame_range
+        main_gloss_duration_frames = maingloss_frame_end - main_gloss_frame_start + 1
+        self.imported_main_gloss_duration_secs = main_gloss_duration_frames / self.imported_scene_fps
+
+
 
     @staticmethod
-    def resample_action(timing: Union[Tuple[float, float], Tuple[float, bool]], use_rel_time: bool, src_action_name: str, target_action_name: str) -> bpy.types.Action:
+    def resample_action(src_action_name: str, target_action_name: str, target_framecount: int) -> bpy.types.Action:
         """Resample the given source action into a new action with the given target name.
         Operates purely on the action's f-curves, so it works regardless of what the action animates
         (armature bones, shape keys, ...) and requires no armature or bone-name knowledge.
@@ -113,19 +158,6 @@ class ActionOperator:
 
         src_action = bpy.data.actions[src_action_name]
 
-        # Compute target_frame_count
-        if not use_rel_time:
-            start, end = timing
-            target_frame_count = end - start + 1
-        else:
-            duration_or_prop, is_proportion = timing
-            if is_proportion:
-                frame_start = int(src_action.frame_range[0])
-                frame_end = int(src_action.frame_range[1])
-                target_frame_count = math.ceil(duration_or_prop * (frame_end - frame_start) + 1)
-            else:
-                target_frame_count = duration_or_prop
-
         sampled_action = bpy.data.actions.new(name=target_action_name)
 
         # Mirror every fcurve from the source into the new action
@@ -135,7 +167,7 @@ class ActionOperator:
         # Build sample points spanning the source frame range
         frame_start = int(src_action.frame_range[0])
         frame_end = int(src_action.frame_range[1])
-        target_frame_count = int(target_frame_count)
+        target_frame_count = int(target_framecount)
         ratio = (frame_end - frame_start) / (target_frame_count - 1)
         samples = [frame_start + x * ratio for x in range(target_frame_count)]
 

@@ -135,11 +135,7 @@ class MMSLine:
 
     def timing(self) -> Tuple[float, float]:
         """Start and the end frame of the gloss in the timeline."""
-        # TODO -- Not sure this is the best formula. If a sign duration is less than 1/FPS, frame start and frame end might be inverted!!!
-        # E.g.: math.ceil(float(1.61) * 60), math.floor(float(1.616) * 60) --> (97, 96)
-        return \
-            math.ceil(float(self["framestart"]) * 60),\
-            math.floor(float(self["frameend"]) * 60)
+        return float(self["framestart"]), float(self["frameend"])
 
     def head_rot(self) -> Optional[mathutils.Quaternion]:
         """Rotation of the head."""
@@ -174,24 +170,23 @@ class MMSLine:
         return mathutils.Euler(values, "ZXY").to_quaternion()
 
     def transition(self) -> float:
-        """Number of frames from the previous gloss (in frames). Used only in relative_time mode."""
-        # TODO - return the value in seconds, and defer the translation into frames
-        return math.ceil(float(self["transition"]) * 60)
+        """Number of seconds from the previous gloss. Used only in relative_time mode."""
+
+        return float(self["transition"])
 
     def duration(self) -> Tuple[float, bool]:
         """Number of frames in the gloss.
-        :returns: A 2-tuple. The first is the duration, either: i) absolute, in frames;
-         or ii) as ratio of the original duration.
+        :returns: A 2-tuple. The first is the duration, either: i) absolute value, in seconds;
+         or ii) as percentage of the original duration (ending with the % sign).
           The second argument is True if the duration is a ratio (case ii)."""
-
-        # TODO - return the value in seconds, and defer the translation into frames
 
         duration = self["duration"]
         if "%" in duration:
             time = duration.strip("%")
             time_ratio = float(time) / 100.0
             return time_ratio, True
-        return math.ceil(float(duration) * 60), False
+        else:
+            return float(duration), False
 
 
 class MMSLineDataInfo:
@@ -209,7 +204,16 @@ class MMSLineDataInfo:
         # TODO --  we will need to store also the framerate of the source Blenderr file, to proper resamplings among different FPS.
         # self.maingloss_original_FPS: float
 
-        self.resampled_frame_range: Optional[Tuple[int, int]] = None
+        # The resampled range of this gloss on the final timeline
+        # self.resampled_frame_range: Optional[Tuple[int, int]] = None
+
+        # The new duration of this gloss, in frames
+        self.resampled_duration_frames: int
+        # Transition in frames from the last frame of the previous gloss
+        #self.transition_frames: int
+
+        # The target framerange on the final timeline
+        self.target_frame_range: Optional[Tuple[int, int]] = None
 
     def compose_file_paths(self, dictionary_root: Path) -> None:
         """
@@ -224,6 +228,71 @@ class MMSLineDataInfo:
 
         if not self.maingloss_path.exists():
             raise Exception(f"Expected gloss file '{self.maingloss_path}' not present for '{self.mms_line.name}'.")
+
+    def compute_target_frame_range(self, use_rel_time: bool, src_action_duration_secs: float, last_gloss_end_frame: int, target_fps: float) -> None:
+
+        if use_rel_time:
+            # If relative timing is used, we use the duration and transition properties of the MMS
+            duration_val, duration_relative = self.mms_line.duration()
+            if duration_relative:
+                duration_secs = src_action_duration_secs * duration_val
+                # frame_start = int(src_action.frame_range[0])
+                # frame_end = int(src_action.frame_range[1])
+                # target_frame_count = math.ceil(duration_or_prop * (frame_end - frame_start) + 1)
+            else:
+                duration_secs = duration_val
+
+            transition_secs = self.mms_line.transition()
+
+            # Consider total timing, then compute the transition in frames as approximated frame count and derive then the duration in frames.
+            tot_time_secs = duration_secs + transition_secs
+
+            tot_time_frames = math.ceil(tot_time_secs * target_fps)
+
+            # Give priority /maximize the framecount for the 
+            self.resampled_duration_frames = math.ceil(duration_secs * target_fps)
+
+            transition_frames = tot_time_frames - self.resampled_duration_frames
+
+            self.target_frame_range = ( \
+                last_gloss_end_frame + transition_frames, \
+                last_gloss_end_frame + transition_frames + self.resampled_duration_frames - 1 \
+            )
+
+        else:
+            # Here the absolute timing is used. Get it from the two start/end columns of the MMS
+            start_secs, end_secs = self.mms_line.timing()
+
+            # Consider the target scene FPS to get the approximation in frames
+            #
+            # Approximate to the last integer frame. Example for 60 fps (frame duration = 0.01666_)
+            # math.floor(0.0 * 60.0) --> 0
+            # math.floor(0.0166 * 60.0) --> 0
+            # math.floor(0.0167 * 60.0) --> 1
+            # ...
+            # math.floor(0.9999 * 60.0) --> 59
+            # math.floor(1.0 * 60.0) --> 60
+            #
+            # We add +1 because we start filling our timeline from frame 1
+            self.target_frame_range = ( \
+                math.floor(start_secs * target_fps) + 1, \
+                math.floor(end_secs * target_fps) + 1 \
+            )
+
+            # The duration is a direct consequence
+            self.resampled_duration_frames = self.target_frame_range[1] - self.target_frame_range[0] + 1
+
+        assert self.target_frame_range is not None
+        # The duration in frames is related to the frame range
+        assert self.resampled_duration_frames == self.target_frame_range[1] - self.target_frame_range[0] + 1
+        assert self.target_frame_range[1] >= self.target_frame_range[0]
+
+        if self.resampled_duration_frames == 0:
+            raise Exception("A gloss execution must last at least 1 frame.")
+
+        if self.target_frame_range[0] <= last_gloss_end_frame:
+            raise Exception(f"No transition between glosses. New gloss start frame is the same as last gloss end frame: {last_gloss_end_frame}.")
+
 
 
 class MMS:

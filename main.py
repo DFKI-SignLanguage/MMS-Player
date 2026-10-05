@@ -249,7 +249,8 @@ def post_bake(
 
     #
     # Set the render range
-    frame_start = armature.animation_data.action.frame_range[0]
+    # frame_start = armature.animation_data.action.frame_range[0]
+    frame_start = 1. # by definition, we always start the rendering from frame 1. We allow to have a delay in starting the first gloss.
     frame_end = armature.animation_data.action.frame_range[1]
     bpy.context.scene.frame_start = int(frame_start)
     bpy.context.scene.frame_end = int(frame_end)
@@ -515,6 +516,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     logger.info("Cleaning up scene and initializing target character ...")
     for obj in bpy.data.objects:
         bpy.data.objects.remove(obj)
+
     # Load the template scene containing the target character, to be animated later on.
     initialize_scene()
 
@@ -543,6 +545,11 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # one to playback the resampled action,
     # and one for inflected action.
     logger.info(f"Processing {len(mms.row_indices)} MMS rows ...")
+
+    # `last_gloss_end` holds the last frame number of the previous gloss.
+    # In relative time mode, combined with transition duration, it allows to compute the start of the next gloss.
+    last_gloss_end: int = 1
+
     for row_idx in mms.row_indices:
 
         mmsline = mms[row_idx]
@@ -564,26 +571,30 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         assert action_operator.imported_main_armature_action is not None
         assert action_operator.imported_main_shapekeys_action is not None
 
+        # Here we perform all the timing computation.
+        # It uses teh timing information in the MMSLine, the framrate of the input gloss scene, the desired frame output.
+        # After this, all further computations are frame-based. Timings in seconds, relative durations, and framerates can be forgotten.
+        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, src_action_duration_secs=action_operator.imported_main_gloss_duration_secs, last_gloss_end_frame=last_gloss_end, target_fps=render_fps)
+        assert mmsline_info.target_frame_range is not None
+        last_gloss_end = mmsline_info.target_frame_range[1]
+
         #
         # Resample actions to a target frame range
         if not arguments.ignore_gloss_duration:
             src_action = action_operator.imported_main_armature_action
             mmsline_info.maingloss_original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
 
-            if arguments.use_relative_time:
-                resampled_action = action_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
-                action_operator.resample_action(timing=mmsline.duration(), use_rel_time=True, src_action_name=action_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
-            else:
-                resampled_action = action_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name)
-                action_operator.resample_action(timing=mmsline.timing(), use_rel_time=False, src_action_name=action_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name)
+            resampled_action = action_operator.resample_action(src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+            action_operator.resample_action(src_action_name=action_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
 
             # After resampling, the frame range of the actions has been approximated to the integer frame position.
             resampled_frame_range = resampled_action.frame_range
-            logger.info(f"Resampled_range: {resampled_frame_range}")
+            logger.info(f"Resampled_range: {resampled_frame_range}, target range: {mmsline_info.target_frame_range}")
+
             assert resampled_frame_range[0] == int(resampled_frame_range[0])
             assert resampled_frame_range[0] == 1.0
             assert resampled_frame_range[1] == int(resampled_frame_range[1])
-            mmsline_info.resampled_frame_range = int(resampled_frame_range[0]), int(resampled_frame_range[1])
+
 
         # Here the "resampled_..." action has been created
         assert "resampled_" + mmsline.output_name in bpy.data.actions
