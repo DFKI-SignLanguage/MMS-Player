@@ -87,7 +87,6 @@ player/             - the main package with all the modules needed by the player
   ArmatureUtils.py  -
   bpy_utils.py      -
   controllers.py    - contrains the controller class, able to setup all the IK controllers and invoke the inflections on them
-  extract.py        -
   merge.py          - all the classes/routines to compoise the sequence of (inflected) glosses on a single timeline
   mms_parser.py     - all the classes/routines able to parse an MMS csv file
   targets.py        - defines the hierachy of inflectino strategies

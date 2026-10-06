@@ -33,7 +33,6 @@ from player.inflection import IKTargetConfig
 from player.bpy_utils import select_object, duplicate_armature
 from player.logging import logger
 from player.logging import enable_log_to_stdout
-from player import extract
 
 from typing import Optional, Tuple, List, Dict
 
@@ -154,13 +153,6 @@ def add_options(arg_parser: argparse.ArgumentParser):
     )
 
     arg_parser.add_argument(
-        "--without-fingers",
-        action="store_true",
-        help="By default, all the fingers are used in evaluations."
-        "Set this to true to disable the extraction of finger data.",
-    )
-
-    arg_parser.add_argument(
         "--use-relative-time",
         action="store_true",
         help="When specified, uses the `duration` and `transition` columns of the MMS"
@@ -172,19 +164,6 @@ def add_options(arg_parser: argparse.ArgumentParser):
         action="store_true",
         help="When specified does not resample the animation (i.e., it uses the original duration of the gloss)."
              "It works only together with --use-relative-time and essentially forces the duration column to 100%%."
-    )
-
-    arg_parser.add_argument(
-        "--extract",
-        action="store_true",
-        help="Allows extracting the motion data for evaluation.",
-    )
-
-    arg_parser.add_argument(
-        "--extract-path",
-        type=str,
-        help="Path for final extraction result",
-        default=None,
     )
 
     arg_parser.add_argument(
@@ -642,12 +621,11 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         bpy.data.objects.remove(resampled_armature)
         bpy.data.armatures.remove(src_armature_data)
 
-        # The inflected armature too, unless --extract still needs it by name afterwards.
-        if not arguments.extract:
-            inflected_armature_data = inflected_armature.data
-            assert type(inflected_armature_data) == bpy.types.Armature
-            bpy.data.objects.remove(inflected_armature)
-            bpy.data.armatures.remove(inflected_armature_data)
+        # The inflected armature too.
+        inflected_armature_data = inflected_armature.data
+        assert type(inflected_armature_data) == bpy.types.Armature
+        bpy.data.objects.remove(inflected_armature)
+        bpy.data.armatures.remove(inflected_armature_data)
 
         # The intermediate actions superseded by "resampled_"/"inflected_".
         for stale_action_name in (
@@ -668,23 +646,6 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # print("Expected inflected action presence ", "inflected_" + mmsline.output_name)
         assert "inflected_" + mmsline.output_name in bpy.data.actions
         assert "resampled_blendshapes_" + mmsline.output_name in bpy.data.actions
-
-    #
-    # Call the data extraction if requested
-    # TODO -- check this block, if really needed. Why is sentence id needed? It seems to be anyway wrong.
-    if arguments.extract:
-        sentence_id = Path(mms_file).stem
-        logger.info(f"Extracting the data to: {arguments.extract_path} ...")
-        extract.run(
-            mms,
-            sentence_id,
-            dictionary_root,
-            arguments.extract_path,
-            arguments.use_relative_time,
-            arguments.without_fingers,
-        )
-        return
-
 
     #
     # Finally we merge individual signs to produce the final utterance of the full sentence.
