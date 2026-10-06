@@ -292,8 +292,8 @@ class MMSLineDataInfo:
         if self.resampled_duration_frames == 0:
             raise Exception("A gloss execution must last at least 1 frame.")
 
-        if self.target_frame_range[0] <= last_gloss_end_frame:
-            raise Exception(f"No transition between glosses. New gloss start frame is the same as last gloss end frame: {last_gloss_end_frame}.")
+        if self.target_frame_range[0] < last_gloss_end_frame:
+            raise Exception(f"Negative transition between glosses. New gloss start frame ({self.target_frame_range[0]}) is less than the last gloss end frame ({last_gloss_end_frame}).")
 
 
 
