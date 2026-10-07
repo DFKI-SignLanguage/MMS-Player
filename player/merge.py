@@ -216,8 +216,8 @@ class Glue:
             # instead, so the panel reflects what's actually being realized for this row.
             gloss_name = "<HOLD>" if mms_row.is_hold else mms_row.name
             for side, arm_override in mms_row.arm_overrides.items():
-                if not arm_override.is_hold:
-                    gloss_name += f" +{side}:{arm_override.name}"
+                arm_gloss_name = "<HOLD>" if arm_override.is_hold else arm_override.name
+                gloss_name += f" +{side}:{arm_gloss_name}"
             self.gloss_timeline.append(
                 GlossSegment(index=row_idx[0], name=gloss_name, start_frame=start, end_frame=end)
             )
