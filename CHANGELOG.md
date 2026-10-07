@@ -6,15 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-07
+
+
+- Issue #8. "Frankenstein" feature: the new `domarm`/`ndomarm` columns (formerly documented as `domgloss`/`ndomgloss`) override the animation of the dominant/non-dominant arm with another gloss, or freeze it with `<HOLD>`. See Docs/MMS.md.
+- Added option `--target-fps` to specify a target animation speed, independently from the framerate of the dictionary glosses. Will allow mixing dictionaries captured at different FPS. Need to update to dictionary `DictionaryGeneration-deploy-261001`, where the correct FPS is set in every gloss Blender scene.
+- Removed old buggy options `--extract` and `--extract-path`
 - Issue #15. Removed the option to render a full sentence. Can easily be realized by automatically computing an MMS with 1 row.
-- Removed support for multiple `fa:`/`num:` glosses in a single MMS row (e.g., `num:1-2-3`). Each gloss must now be on its own row.
+- Removed support for multiple `fa:`/`num:` glosses in a single MMS row (e.g., `num:1-2-3`). It was leading to too many code conditionals and arbitrary choices. Each gloss must now be on its own row.
 
-## [0.4.0] - 2025-09-07
+## [0.4.0] - 2026-09-07
 
-- Simplified action management. Now supporting dictionary versions with purged Blender scenes (Dictionary size reduced to less than 5%. See Dictionary deploy of 260828)
+- Simplified action management. Now supporting dictionary versions with purged Blender scenes (Dictionary size reduced to less than 5%. Update to `DictionaryGeneration-deploy-260828`)
 - Creation of MMS Examples: In examples creation, added `--python-exit-code 1` to Blender command line invokation, to correctly manage rule dependencies on failures.
 
-## [0.3.0] - 2025-08-27
+## [0.3.0] - 2026-08-27
 
 - Important fix to support GLOSSES with a dash (-) in their name.
 - main.py can now be invoked also from another directory: `player` module and `assets` are searched locally.
@@ -22,13 +28,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Added (optional) subtitles showing the currently played GLOSS or transition.
 - Restored basic REST server and added sample client.
 
-## [0.2.0] - 2025-08-18
+## [0.2.0] - 2026-08-18
 
 - Updated backend Gloria avatar with ARKit-compatible blendshapes.
 - Facial animation supported! (Requires a new dictionary download)
 - Hips are now animated!
 - Tested with Blender LTS 4.2.23 (solves some render glitches in the shadows).
-- Added example videso to the docs.
+- Added example videos (Animated GIFs) to the docs.
 
 ## [0.1.0] - 2025-05-13
 
