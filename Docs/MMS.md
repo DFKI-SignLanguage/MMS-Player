@@ -6,7 +6,7 @@ An MMS file is a sequence of signs described in a table.
 
 Here is an example of the sign NICHT repeated three times: the first time neutral (as recorded), the second time as you were "whispering", and the third time as you were "screaming".
 
-| maingloss | framestart | frameend | duration | transition | domgloss | ndomgloss | torsorelocx | torsorelocy | torsorelocz | torsorelocax | torsorelocay | torsorelocaz | domhandrelocx | domhandrelocy | domhandrelocz | domhandrelocax | domhandrelocay | domhandrelocaz | domhandrelocsx | domhandrelocsy | domhandrelocsz | ndomhandrelocx | ndomhandrelocy | ndomhandrelocz | ndomhandrelocax | ndomhandrelocay | ndomhandrelocaz | ndomhandrelocsx | ndomhandrelocsy | ndomhandrelocsz | headrotx | headroty | headrotz |
+| maingloss | framestart | frameend | duration | transition | domarm | ndomarm | torsorelocx | torsorelocy | torsorelocz | torsorelocax | torsorelocay | torsorelocaz | domhandrelocx | domhandrelocy | domhandrelocz | domhandrelocax | domhandrelocay | domhandrelocaz | domhandrelocsx | domhandrelocsy | domhandrelocsz | ndomhandrelocx | ndomhandrelocy | ndomhandrelocz | ndomhandrelocax | ndomhandrelocay | ndomhandrelocaz | ndomhandrelocsx | ndomhandrelocsy | ndomhandrelocsz | headrotx | headroty | headrotz |
 |-----------|------------|----------|----------|------------|----------|-----------|-------------|-------------|-------------|--------------|--------------|--------------|---------------|---------------|---------------|----------------|----------------|----------------|----------------|----------------|----------------|----------------|----------------|----------------|-----------------|-----------------|-----------------|-----------------|-----------------|-----------------|----------|----------|----------|
 | NICHT     | 0          | 0        | 0.5      | 0.5        |          |           | 0           | 0           | 0           | 0            | 0            | 0            | 0             | 0             | 0             | 0              | 0              | 0              | 1              | 1              | 1              | 0              | 0              | 0              | 0               | 0               | 0               | 1               | 1               | 1               | 0        | 0        | 0        |
 | NICHT     | 0          | 0        | 0.5      | 0.5        |          |           | -10         | 0           | 0           | 0            | 0            | 0.55         | 0             | 15            | 0             | 0              | 0              | 0              | 0.4            | 0.4            | 0.4            | 0              | 15             | 0              | 0               | 0               | 0               | 0.4             | 0.4             | 0.4             | 0        | 0        | -0.55    |
@@ -55,7 +55,7 @@ However, there is a fundamental difference between filling MMS cells with identi
 
 For example:
 
-| maingloss | framestart | frameend | duration | transition | domgloss | ndomgloss | domhandrelocx | domhandrelocy | domhandrelocz | domhandrelocax | domhandrelocay | domhandrelocaz | domhandrelocsx | domhandrelocsy | domhandrelocsz | domhandrotx | domhandroty | domhandrotz | ndomhandrelocx | ndomhandrelocy | ndomhandrelocz | ndomhandrelocax | ndomhandrelocay | ndomhandrelocaz | ndomhandrelocsx | ndomhandrelocsy | ndomhandrelocsz | ndomhandrotx | ndomhandroty | ndomhandrotz | 
+| maingloss | framestart | frameend | duration | transition | domarm | ndomarm | domhandrelocx | domhandrelocy | domhandrelocz | domhandrelocax | domhandrelocay | domhandrelocaz | domhandrelocsx | domhandrelocsy | domhandrelocsz | domhandrotx | domhandroty | domhandrotz | ndomhandrelocx | ndomhandrelocy | ndomhandrelocz | ndomhandrelocax | ndomhandrelocay | ndomhandrelocaz | ndomhandrelocsx | ndomhandrelocsy | ndomhandrelocsz | ndomhandrotx | ndomhandroty | ndomhandrotz | 
 |-----------|------------|----------|----------|------------|----------|-----------|---------------|---------------|---------------|----------------|----------------|----------------|----------------|----------------|----------------|-------------|-------------|-------------|----------------|----------------|----------------|-----------------|-----------------|-----------------|-----------------|-----------------|-----------------|--------------|--------------|--------------|
 | INDEX     | 0          | 0        | 0.2      | 0          |          |           | 0             | 0             | 0             | 0              | 0              | 0              | 1              | 1              | 1              | 0           | 0           | 0           | 0              | 0              | 0              | 0               | 0               | 0               | 1               | 1               | 1               | 0            | 0            | 0            |
 | INDEX     | 0          | 0        | 0.2      | 0.5        |          |           |               |               |               |                |                |                |                |                |                |             |             |             |                |                |                |                 |                 |                 |                 |                 |                 |              |              |              |
@@ -123,14 +123,24 @@ Whether this two columns are used, or the absolute values (framestart/end), is s
 This also means that the two methods (absolute or relative) can not be mixed. If these two columns are used, the other two are completely ignored (and vice versa).
 
 
-### GLOSS for (Non-)dominant hand: (n)domgloss
+### GLOSS override for (Non-)dominant arm: (n)domarm
 
-While the `maingloss` column specifies the sign that is played back on the whole body, it is possible also to override the animation of the left and right arms with animation data from another signs.
+While the `maingloss` column specifies the sign that is played back on the whole body, it is possible also to override the animation of the left and right arms with animation data from another signs, or separately hold the arm position from the previous animation.
 
-* `domglss` says from which sign to take the data to animate the dominant arm (from the shoulder to the fingertips);
-* `ndomgloss` is the same for the non-dominant arm.
+* `domarm` either the sign from which animate the dominant (right) arm, or the `<HOLD>` keyword;
+* `ndomarm` is the same for the non-dominant (left) arm.
 
-In fact, when both `domgloss` and `ndomgloss` columns are specified, we are playing back animation data from three signs simultaneously.
+The overridden bones go from the clavicle to the fingertips (see `assets/arm_bones.json`).
+
+In fact, when both `domarm` and `ndomarm` columns are specified, we are playing back animation data from three signs simultaneously.
+
+* The override sign is played back with the same duration of the `maingloss` (its full animation is stretched or compressed to fit).
+* The override sign has no inflection parameters of its own. However, the inflections of the row (e.g., `domhandreloc`, `domhandrot`, `domshoulderreloc`) are applied after merging the (n)dom arm animation with the main one.
+* The `<class>:<gloss>` syntax (e.g., `fa:A`) can be used as in the `maingloss` column.
+* The facial animation is always taken from the `maingloss`.
+* As for `maingloss`, The `<HOLD>` keyword can not be used in the first row.
+
+For an example, see [SimultaneousGlosses.mms.csv](../MMS-examples/SimultaneousGlosses.mms.csv)
 
 
 ### Hands trajectory: (n)domhandrelocx/y/z/ax/ay/az/sx/sy/sz

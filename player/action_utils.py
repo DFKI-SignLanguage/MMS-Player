@@ -18,9 +18,9 @@
 # Bakes the inflections into the library gloss.
 #
 
-import math
 import bpy
-from typing import Tuple, Union, Optional
+from pathlib import Path
+from typing import List, Tuple, Optional
 
 from .logging import logger
 from .mms_parser import MMSLineDataInfo
@@ -47,12 +47,119 @@ def _all_id_pointers() -> set[int]:
     return {id_.as_pointer() for id_ in _all_ids()}
 
 
+def load_gloss_actions(blend_path: Path, gloss_name: str, output_name: str) -> Tuple[bpy.types.Action, bpy.types.Action, float]:
+    """Load the body and face actions of a gloss into the current blender context.
+
+    The actions are renamed to "imported_<output_name>" and "imported_blendshapes_<output_name>",
+    so that the same gloss can be loaded several times without collisions.
+
+    :returns: A 3-tuple: the body action, the face action, and the duration of the gloss in seconds.
+    """
+
+    logger.info(f"Loading GLOSS animation data from '{blend_path}' ...")
+
+    if not blend_path.exists():
+        raise Exception(f"Failed to find the library data '{str(blend_path)}'.")
+
+    # Take a snapshot of the existing data, so that we can identify (and later remove)
+    # everything that is brought in together with the appended scene.
+    pre_load_ids = _all_id_pointers()
+
+    with bpy.data.libraries.load(str(blend_path)) as (data_from, data_to):
+        if len(data_from.scenes) == 0:
+            raise Exception(f"No scene found in '{str(blend_path)}'.")
+        data_to.actions = data_from.actions
+        data_to.scenes = data_from.scenes[:1]
+
+    #
+    # Retrieve the frames-per-second of the source scene.
+    src_scene = data_to.scenes[0]
+    scene_fps = src_scene.render.fps / src_scene.render.fps_base
+    logger.info(f"Imported scene FPS: {scene_fps}")
+
+    # Remove the scene and all its dependencies (objects, collections, meshes, ...), keeping only the actions.
+    action_pointers = {action.as_pointer() for action in data_to.actions if action is not None}
+    ids_to_remove = [id_ for id_ in _all_ids()
+                     if id_.as_pointer() not in pre_load_ids and id_.as_pointer() not in action_pointers]
+    bpy.data.batch_remove(ids_to_remove)
+
+    #
+    # Find the main body action by its known naming convention.
+    body_action_name = BODY_ACTION_PREFIX + gloss_name
+    if body_action_name not in bpy.data.actions:
+        raise Exception(f"Body animation '{body_action_name}' not found in loaded scene.")
+    body_action = bpy.data.actions[body_action_name]
+
+    # Set the name of the imported action, avoiding duplicates and auto renaming in case of multiple glosses with the same name in the MMS
+    body_action.name = "imported_" + output_name
+
+    logger.info(f"Imported body action '{body_action.name}'")
+
+    #
+    # Check for the presence of the Blendshape face animation
+    face_action_name = FACE_ACTION_PREFIX + gloss_name
+    if face_action_name not in bpy.data.actions:
+        raise Exception(f"Face animation '{face_action_name}' not found in loaded scene.")
+
+    # Rename the action to a unique name
+    face_action = bpy.data.actions[face_action_name]
+    face_action.name = "imported_blendshapes_" + output_name
+
+    #
+    # Timing calculations
+    frame_start, frame_end = body_action.frame_range
+    duration_frames = frame_end - frame_start + 1
+    duration_secs = duration_frames / scene_fps
+
+    return body_action, face_action, duration_secs
+
+
+def _bone_data_path_prefix(bone_name: str) -> str:
+    return f'pose.bones["{bone_name}"]'
+
+
+def _fcurves_of_bones(action: bpy.types.Action, bone_names: List[str]) -> List[bpy.types.FCurve]:
+    """Return the fcurves of the given action animating any of the given bones."""
+
+    prefixes = tuple(_bone_data_path_prefix(b) for b in bone_names)
+    return [fc for fc in action.fcurves if fc.data_path.startswith(prefixes)]
+
+
+def override_bone_fcurves(target_action: bpy.types.Action, source_action: bpy.types.Action, bone_names: List[str]) -> None:
+    """Replace, in the target action, the fcurves of the given bones with the ones of the source action."""
+
+    for target_fcurve in _fcurves_of_bones(target_action, bone_names):
+        target_action.fcurves.remove(target_fcurve)
+
+    for source_fcurve in _fcurves_of_bones(source_action, bone_names):
+        target_fcurve = target_action.fcurves.new(data_path=source_fcurve.data_path, index=source_fcurve.array_index)
+        target_fcurve.keyframe_points.add(len(source_fcurve.keyframe_points))
+        for src_kfp, tgt_kfp in zip(source_fcurve.keyframe_points, target_fcurve.keyframe_points):
+            tgt_kfp.co = src_kfp.co
+            tgt_kfp.interpolation = src_kfp.interpolation
+        target_fcurve.update()
+
+
+def hold_bone_fcurves(target_action: bpy.types.Action, source_action: bpy.types.Action, bone_names: List[str], n_frames: int) -> None:
+    """Replace, in the target action, the fcurves of the given bones with constant curves (keyed at frames 1 and n_frames)
+    holding the value of the last keyframe of the source action."""
+
+    for target_fcurve in _fcurves_of_bones(target_action, bone_names):
+        target_action.fcurves.remove(target_fcurve)
+
+    for source_fcurve in _fcurves_of_bones(source_action, bone_names):
+        last_value = source_fcurve.keyframe_points[-1].co[1]
+        target_fcurve = target_action.fcurves.new(data_path=source_fcurve.data_path, index=source_fcurve.array_index)
+        target_fcurve.keyframe_points.insert(1, last_value, options={"FAST"})
+        target_fcurve.keyframe_points.insert(n_frames, last_value, options={"FAST"})
+        target_fcurve.update()
+
+
 class ActionOperator:
     """This utility class has the methods to:
 
     1. Load the gloss animation(s) needed to realize a given MMSLine.
     2. Resample an action to a given target frame number
-    3. TODO - Mix several actions together
     """
 
     def __init__(self, mms_line_info: MMSLineDataInfo) -> None:
@@ -62,7 +169,6 @@ class ActionOperator:
         self.imported_main_armature_action: Optional[bpy.types.Action] = None
         self.imported_main_shapekeys_action: Optional[bpy.types.Action] = None
 
-        self.imported_scene_fps: float
         self.imported_main_gloss_duration_secs: float
 
     def load_actions(self) -> None:
@@ -74,70 +180,11 @@ class ActionOperator:
         blend_path = self.mms_line_info.maingloss_path
 
         if blend_path is None:
-            raise Exception(f"No file path stored for '{self.mms_line_info.mms_line.output_name}'.")    
+            raise Exception(f"No file path stored for '{self.mms_line_info.mms_line.output_name}'.")
 
-        logger.info(f"Loading GLOSS animation data from '{blend_path}' ...")
-
-        if not blend_path.exists():
-            raise Exception(f"Failed to find the library data '{str(blend_path)}'.")
-
-        # Take a snapshot of the existing data, so that we can identify (and later remove)
-        # everything that is brought in together with the appended scene.
-        pre_load_ids = _all_id_pointers()
-
-        with bpy.data.libraries.load(str(blend_path)) as (data_from, data_to):
-            if len(data_from.scenes) == 0:
-                raise Exception(f"No scene found in '{str(blend_path)}'.")
-            data_to.actions = data_from.actions
-            data_to.scenes = data_from.scenes[:1]
-
-        #
-        # Retrieve the frames-per-second of the source scene.
-        src_scene = data_to.scenes[0]
-        self.imported_scene_fps = src_scene.render.fps / src_scene.render.fps_base
-        logger.info(f"Imported scene FPS: {self.imported_scene_fps}")
-
-        # Remove the scene and all its dependencies (objects, collections, meshes, ...), keeping only the actions.
-        action_pointers = {action.as_pointer() for action in data_to.actions if action is not None}
-        ids_to_remove = [id_ for id_ in _all_ids()
-                         if id_.as_pointer() not in pre_load_ids and id_.as_pointer() not in action_pointers]
-        bpy.data.batch_remove(ids_to_remove)
-
-        #
-        # Find the main body action by its known naming convention.
-        body_action_name = BODY_ACTION_PREFIX + self.mms_line_info.mms_line.name
-        if body_action_name not in bpy.data.actions:
-            raise Exception(f"Body animation '{body_action_name}' not found in loaded scene.")
-        body_action = bpy.data.actions[body_action_name]
-
-        # Set the name of the imported action, avoiding duplicates and auto renaming in case of multiple glosses with the same name in the MMS
-        body_action.name = "imported_" + self.mms_line_info.mms_line.output_name
-
-        logger.info(f"Imported body action '{body_action.name}'")
-
-        # Store direct reference to the armature/body action
-        self.imported_main_armature_action = body_action
-
-
-        #
-        # Check for the presence of the Blendshape face animation
-        face_action_name = FACE_ACTION_PREFIX + self.mms_line_info.mms_line.name
-        if self.mms_line_info.mms_line.name != "<HOLD>" and face_action_name not in bpy.data.actions:
-            raise Exception(f"Face animation '{face_action_name}' not found in loaded scene.")
-
-        # Rename the action to a unique name
-        face_action = bpy.data.actions[face_action_name]
-        face_action.name = "imported_blendshapes_" + self.mms_line_info.mms_line.output_name
-
-        # Store direct reference to the shapekeys/face action
-        self.imported_main_shapekeys_action = face_action
-
-        #
-        # Timing calculations
-        main_gloss_frame_start, maingloss_frame_end = self.imported_main_armature_action.frame_range
-        main_gloss_duration_frames = maingloss_frame_end - main_gloss_frame_start + 1
-        self.imported_main_gloss_duration_secs = main_gloss_duration_frames / self.imported_scene_fps
-
+        mms_line = self.mms_line_info.mms_line
+        self.imported_main_armature_action, self.imported_main_shapekeys_action, self.imported_main_gloss_duration_secs = \
+            load_gloss_actions(blend_path=blend_path, gloss_name=mms_line.name, output_name=mms_line.output_name)
 
 
     @staticmethod

@@ -25,8 +25,8 @@ MMS_PLAYER_ROOT_PATH = Path(__file__).resolve().parent
 sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 
 
-from player.mms_parser import MMSParser, MMSLineDataInfo
-from player.action_utils import ActionOperator
+from player.mms_parser import MMSParser, MMSLineDataInfo, ARM_OVERRIDE_COLUMNS
+from player.action_utils import ActionOperator, load_gloss_actions, override_bone_fcurves, hold_bone_fcurves
 from player.merge import Glue, GlossSegment
 from player.inflection import InflectionDirector
 from player.inflection import IKTargetConfig
@@ -63,6 +63,17 @@ if not ANIMATED_BONES_LIST_PATH.exists():
 
 with open(ANIMATED_BONES_LIST_PATH, "r") as stream:
     ANIMATED_BONE_LIST: List[str] = json.load(stream)
+
+# Path to the JSON file with the bones of the dominant ("dom") and non-dominant ("ndom") arms, used by the (n)domarm overrides.
+ARM_BONES_PATH = MMS_PLAYER_ROOT_PATH / "assets" / "arm_bones.json"
+
+with open(ARM_BONES_PATH, "r") as stream:
+    ARM_BONES: Dict[str, List[str]] = json.load(stream)
+
+for _arm_bone_names in ARM_BONES.values():
+    _unknown_arm_bones = [b for b in _arm_bone_names if b not in ANIMATED_BONE_LIST]
+    if len(_unknown_arm_bones) > 0:
+        raise Exception(f"Bones {_unknown_arm_bones} in '{ARM_BONES_PATH}' are not in '{ANIMATED_BONES_LIST_PATH}'.")
 
 
 def add_options(arg_parser: argparse.ArgumentParser):
@@ -138,7 +149,7 @@ def add_options(arg_parser: argparse.ArgumentParser):
     )
 
     arg_parser.add_argument(
-        "--render-fps",
+        "--target-fps",
         type=int,
         required=False,
         default=60,
@@ -184,7 +195,7 @@ def add_options(arg_parser: argparse.ArgumentParser):
 def post_bake(
         armature_obj_name: str,
         action_name: str,
-        render_fps: float,
+        target_fps: float,
         render_size_x: int,
         render_size_y: int,
         mp4_path: Optional[str] = None,
@@ -253,7 +264,7 @@ def post_bake(
                             "was used). The panel will be added but will stay empty.")
         setup_gloss_panel(camera_obj=bpy.data.objects[RENDER_CAMERA_NAME], gloss_timeline=gloss_timeline or [])
 
-    bpy.context.scene.render.fps = render_fps
+    bpy.context.scene.render.fps = target_fps
     bpy.context.scene.render.image_settings.file_format = "FFMPEG"
     # bpy.context.scene.render.image_settings.file_format = 'PNG'
     bpy.context.scene.render.ffmpeg.format = "MPEG4"
@@ -407,9 +418,9 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     mms_file = Path(arguments.source_mms_file)
     dictionary_root = Path(arguments.dictionary_dir)
-    render_fps = arguments.render_fps
+    target_fps = arguments.target_fps
 
-    logger.info(f"Realizing MMS using dictionary at '{dictionary_root}', setting an output at {render_fps} FPS.")
+    logger.info(f"Realizing MMS using dictionary at '{dictionary_root}', setting an output at {target_fps} FPS.")
 
     # Read the MMS from the given MMS file.
     logger.info(f"Parsing MMS from '{mms_file}' ...")
@@ -529,6 +540,9 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # In relative time mode, combined with transition duration, it allows to compute the start of the next gloss.
     last_gloss_end: int = 1
 
+    # The (not inflected) resampled action of the previous row. Needed by the <HOLD> arm overrides.
+    prev_resampled_action: Optional[bpy.types.Action] = None
+
     for row_idx in mms.row_indices:
 
         mmsline = mms[row_idx]
@@ -553,7 +567,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # Here we perform all the timing computation.
         # It uses teh timing information in the MMSLine, the framrate of the input gloss scene, the desired frame output.
         # After this, all further computations are frame-based. Timings in seconds, relative durations, and framerates can be forgotten.
-        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, src_action_duration_secs=action_operator.imported_main_gloss_duration_secs, last_gloss_end_frame=last_gloss_end, target_fps=render_fps)
+        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, src_action_duration_secs=action_operator.imported_main_gloss_duration_secs, last_gloss_end_frame=last_gloss_end, target_fps=target_fps)
         assert mmsline_info.target_frame_range is not None
         last_gloss_end = mmsline_info.target_frame_range[1]
 
@@ -577,6 +591,32 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         # Here the "resampled_..." action has been created
         assert "resampled_" + mmsline.output_name in bpy.data.actions
+
+        #
+        # Override the animation of the arms (domarm/ndomarm columns), before the inflection.
+        for side, arm_override in mmsline.arm_overrides.items():
+            if arguments.ignore_gloss_duration:
+                raise Exception(f"The {ARM_OVERRIDE_COLUMNS[side]} column can not be used together with --ignore-gloss-duration.")
+
+            if arm_override.is_hold:
+                assert prev_resampled_action is not None
+                logger.info(f"Holding the {side} arm at the last pose of '{prev_resampled_action.name}'")
+                hold_bone_fcurves(target_action=resampled_action, source_action=prev_resampled_action,
+                                  bone_names=ARM_BONES[side], n_frames=mmsline_info.resampled_duration_frames)
+            else:
+                assert arm_override.name is not None
+                logger.info(f"Overriding the {side} arm with gloss '{arm_override.name}'")
+                arm_output_name = f"{mmsline.output_name}_{ARM_OVERRIDE_COLUMNS[side]}"
+                arm_body_action, arm_shapekeys_action, _ = load_gloss_actions(
+                    blend_path=mmsline_info.arm_override_paths[side], gloss_name=arm_override.name, output_name=arm_output_name)
+                # The override gloss lasts as much as the main gloss.
+                arm_resampled_action = ActionOperator.resample_action(
+                    src_action_name=arm_body_action.name, target_action_name="resampled_" + arm_output_name,
+                    target_framecount=mmsline_info.resampled_duration_frames)
+                override_bone_fcurves(target_action=resampled_action, source_action=arm_resampled_action, bone_names=ARM_BONES[side])
+                # Only the arm bones of the body action are used. The face animation comes from the main gloss.
+                for arm_action in (arm_body_action, arm_shapekeys_action, arm_resampled_action):
+                    bpy.data.actions.remove(arm_action)
 
         # Create an armature referencing the resampled action
         # TODO -- Consider to reuse the target armature and assign the resampled action, instead of duplicating the armature for each gloss-action to playback.
@@ -631,11 +671,18 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         for stale_action_name in (
             action_operator.imported_main_armature_action.name,
             action_operator.imported_main_shapekeys_action.name,
-            "resampled_" + mmsline.output_name,
         ):
             stale_action = bpy.data.actions.get(stale_action_name)
             if stale_action is not None:
                 bpy.data.actions.remove(stale_action)
+
+        # The "resampled_" action is kept until the next row, as source for the <HOLD> arm overrides.
+        if prev_resampled_action is not None:
+            bpy.data.actions.remove(prev_resampled_action)
+        prev_resampled_action = bpy.data.actions.get("resampled_" + mmsline.output_name)
+
+    if prev_resampled_action is not None:
+        bpy.data.actions.remove(prev_resampled_action)
 
     logger.info("MMS rows processed. Single gloss animations have been inflected.")
 
@@ -706,7 +753,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     #
     # Put all the inflected glosses/actions into a final timeline
-    glue.realize_mms(rows_info=rows_info, use_rel_time=arguments.use_relative_time)
+    glue.realize_mms(rows_info=rows_info, arm_bones=ARM_BONES)
 
     # Check if the bones animated in the target_action_name also appear in the ANIMATED_BONES_LIST_PATH.
     # Emit a warning if there are bones that are animated but not listed in ANIMATED_BONES_LIST_PATH. Include the list of non expected bones.
@@ -746,7 +793,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         render_size_pct=arguments.render_size_pct,
         render_size_x=arguments.res_x,
         render_size_y=arguments.res_y,
-        render_fps=render_fps,
+        target_fps=target_fps,
         gloss_panel=arguments.gloss_panel,
         gloss_timeline=glue.gloss_timeline,
     )
