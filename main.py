@@ -149,7 +149,7 @@ def add_options(arg_parser: argparse.ArgumentParser):
     )
 
     arg_parser.add_argument(
-        "--render-fps",
+        "--target-fps",
         type=int,
         required=False,
         default=60,
@@ -195,7 +195,7 @@ def add_options(arg_parser: argparse.ArgumentParser):
 def post_bake(
         armature_obj_name: str,
         action_name: str,
-        render_fps: float,
+        target_fps: float,
         render_size_x: int,
         render_size_y: int,
         mp4_path: Optional[str] = None,
@@ -264,7 +264,7 @@ def post_bake(
                             "was used). The panel will be added but will stay empty.")
         setup_gloss_panel(camera_obj=bpy.data.objects[RENDER_CAMERA_NAME], gloss_timeline=gloss_timeline or [])
 
-    bpy.context.scene.render.fps = render_fps
+    bpy.context.scene.render.fps = target_fps
     bpy.context.scene.render.image_settings.file_format = "FFMPEG"
     # bpy.context.scene.render.image_settings.file_format = 'PNG'
     bpy.context.scene.render.ffmpeg.format = "MPEG4"
@@ -418,9 +418,9 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     mms_file = Path(arguments.source_mms_file)
     dictionary_root = Path(arguments.dictionary_dir)
-    render_fps = arguments.render_fps
+    target_fps = arguments.target_fps
 
-    logger.info(f"Realizing MMS using dictionary at '{dictionary_root}', setting an output at {render_fps} FPS.")
+    logger.info(f"Realizing MMS using dictionary at '{dictionary_root}', setting an output at {target_fps} FPS.")
 
     # Read the MMS from the given MMS file.
     logger.info(f"Parsing MMS from '{mms_file}' ...")
@@ -567,7 +567,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # Here we perform all the timing computation.
         # It uses teh timing information in the MMSLine, the framrate of the input gloss scene, the desired frame output.
         # After this, all further computations are frame-based. Timings in seconds, relative durations, and framerates can be forgotten.
-        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, src_action_duration_secs=action_operator.imported_main_gloss_duration_secs, last_gloss_end_frame=last_gloss_end, target_fps=render_fps)
+        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, src_action_duration_secs=action_operator.imported_main_gloss_duration_secs, last_gloss_end_frame=last_gloss_end, target_fps=target_fps)
         assert mmsline_info.target_frame_range is not None
         last_gloss_end = mmsline_info.target_frame_range[1]
 
@@ -793,7 +793,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         render_size_pct=arguments.render_size_pct,
         render_size_x=arguments.res_x,
         render_size_y=arguments.res_y,
-        render_fps=render_fps,
+        target_fps=target_fps,
         gloss_panel=arguments.gloss_panel,
         gloss_timeline=glue.gloss_timeline,
     )
