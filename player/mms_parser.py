@@ -30,6 +30,25 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict, List
 
 
+HOLD_KEYWORD = "<HOLD>"
+
+# The names of the MMS columns that can override the animation of the dominant (right) and non-dominant (left) arm.
+ARM_OVERRIDE_COLUMNS = {"dom": "domarm", "ndom": "ndomarm"}
+
+
+class ArmOverride:
+    """The content of a (n)domarm cell: either another gloss to play on the arm bones, or a <HOLD>."""
+
+    def __init__(self, name: Optional[str] = None, datatype: Optional[str] = None, is_hold: bool = False):
+        assert is_hold or name is not None
+        self.name = name  # The gloss to play on the arm. None if is_hold.
+        self.datatype = datatype  # The class/type of the gloss. None if is_hold.
+        self.is_hold = is_hold  # If True, the arm freezes at the last pose of the previous row.
+
+    def __repr__(self):
+        return "ArmOverride(<HOLD>)" if self.is_hold else f"ArmOverride({self.datatype}:{self.name})"
+
+
 class MMSLine:
     """MMSLine represents a single row of the MMS table.
     
@@ -45,6 +64,21 @@ class MMSLine:
         self.name, self.datatype = self.find_datatype(line_data[0])  # The gloss itself and its class/type (defauts to 'signs').
         self.is_hold: bool = False  # Set to true if the gloss in this lione is <HODL>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
         self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
+
+        # Optional overrides of the arms animation, from the domarm/ndomarm columns. Keys are "dom" and "ndom".
+        self.arm_overrides: Dict[str, ArmOverride] = {}
+        for side, column in ARM_OVERRIDE_COLUMNS.items():
+            if column not in store_index or store_index[column] >= len(line_data):
+                continue
+            cell = self[column]
+            if cell is None or cell.strip() == "":
+                continue
+            cell = cell.strip()
+            if cell == HOLD_KEYWORD:
+                self.arm_overrides[side] = ArmOverride(is_hold=True)
+            else:
+                arm_name, arm_datatype = self.find_datatype(cell)
+                self.arm_overrides[side] = ArmOverride(name=arm_name, datatype=arm_datatype)
 
     def __getitem__(self, key):
         return self.line_data[self.store_index[key]]
@@ -201,6 +235,8 @@ class MMSLineDataInfo:
 
         # Filled later while scanning or loading the blend files
         self.maingloss_path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
+        # Paths to the Blend scenes of the glosses overriding the arms. Keys are "dom" and "ndom". <HOLD> overrides have no path.
+        self.arm_override_paths: Dict[str, Path] = {}
 
         self.maingloss_original_frame_range: Optional[Tuple[float, float]] = None
         # TODO --  we will need to store also the framerate of the source Blenderr file, to proper resamplings among different FPS.
@@ -230,6 +266,15 @@ class MMSLineDataInfo:
 
         if not self.maingloss_path.exists():
             raise Exception(f"Expected gloss file '{self.maingloss_path}' not present for '{self.mms_line.name}'.")
+
+        for side, arm_override in self.mms_line.arm_overrides.items():
+            if arm_override.is_hold:
+                continue
+            assert arm_override.name is not None and arm_override.datatype is not None
+            arm_path = dictionary_root / arm_override.datatype / "trimmed" / f"{arm_override.name}.blend"
+            if not arm_path.exists():
+                raise Exception(f"Expected gloss file '{arm_path}' not present for {ARM_OVERRIDE_COLUMNS[side]} '{arm_override.name}'.")
+            self.arm_override_paths[side] = arm_path
 
     def compute_target_frame_range(self, use_rel_time: bool, src_action_duration_secs: float, last_gloss_end_frame: int, target_fps: float) -> None:
 
@@ -367,6 +412,11 @@ class MMSParser:
             mms_row = MMSLine(index_for_column, mms_row_str, idx)
 
             matches = re.findall(r'<(.*?)>', mms_row.name)
+
+            if idx == 0:
+                for side, arm_override in mms_row.arm_overrides.items():
+                    if arm_override.is_hold:
+                        raise Exception(f"<HOLD> can not be used in the {ARM_OVERRIDE_COLUMNS[side]} column of the first row of an MMS.")
 
             if len(matches) > 0 and matches[0] == "HOLD":
                 print(idx, "FOUND HOLD")

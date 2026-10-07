@@ -1,4 +1,4 @@
-maingloss,framestart,frameend,duration,transition,domgloss,ndomgloss
+maingloss,framestart,frameend,duration,transition,domarm,ndomarm
 gest:PAUSENPOSITION,0,0,100%,0.2,,
 num-ord:1,0,0,100%,0.5,,
 num-ord:2,0,0,100%,0.5,,

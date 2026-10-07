@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+- Added option `--target-fps` to specify a target animation speed, independently from the framerate of the dictionary glosses. Will allow mixing dictionaries captured at different FPS. Need to update to dictionary `DictionaryGeneration-deploy-261001`, where the correct FPS is set in every gloss Blender scene.
+- Issue #8. "Frankenstein" feature: the new `domarm`/`ndomarm` columns (formerly documented as `domgloss`/`ndomgloss`) override the animation of the dominant/non-dominant arm with another gloss, or freeze it with `<HOLD>`. See Docs/MMS.md.
 - Issue #15. Removed the option to render a full sentence. Can easily be realized by automatically computing an MMS with 1 row.
 - Removed support for multiple `fa:`/`num:` glosses in a single MMS row (e.g., `num:1-2-3`). Each gloss must now be on its own row.
 

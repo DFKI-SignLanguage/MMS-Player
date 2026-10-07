@@ -33,6 +33,7 @@ Load the inflection configuration (using Configurator), which specifies what IK 
 For each row/gloss of the MMS:
   Load the GLOSS animation into an action
   Resample the GLOSS duration according to the timing information (ArmatureOperator.resample())
+  If the (n)domarm columns are set, replace the arm bones fcurves with the ones of another (resampled) GLOSS, or with a hold of the previous row's last pose (override_bone_fcurves(), hold_bone_fcurves())
   Instantiate all the IK controllers needed to perform inflections (Controller.setup_chain())
   Apply the inflections to all IK controllers (Controller.execute())
     In turn, for ech frame of the animation, this invokes the target-specific inflection routine (Target.inflect()) 

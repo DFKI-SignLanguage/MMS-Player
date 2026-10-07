@@ -21,7 +21,7 @@
 import bpy
 
 from dataclasses import dataclass
-from typing import Optional, Tuple, List, Dict
+from typing import Callable, Optional, Tuple, List, Dict
 from .mms_parser import MMS, MMSLineDataInfo
 from .logging import logger
 
@@ -119,11 +119,15 @@ class Glue:
                      source_action: bpy.types.Action,
                      start: float,
                      end: float,
+                     data_path_filter: Optional[Callable[[str], bool]] = None,
                      ) -> int:
+        """:param data_path_filter: If given, only the source fcurves whose data_path satisfies the filter are processed."""
 
         logger.info(f"Performing HOLD Operation in range {start}-{end}. Last frame from {source_action.name}.")
 
         for source_fcurve in source_action.fcurves:
+            if data_path_filter is not None and not data_path_filter(source_fcurve.data_path):
+                continue
             target_curve = target_action.fcurves.find(
                     source_fcurve.data_path, index=source_fcurve.array_index
                     )
@@ -149,14 +153,15 @@ class Glue:
     def append_action(self,
                           target_action: bpy.types.Action,
                           source_action: bpy.types.Action,
-                          start: float) -> int:
+                          start: float,
+                          data_path_filter: Optional[Callable[[str], bool]] = None) -> int:
         """Appends the data of a source action into a target action, starting from the given keyframe.
         Returns the keyframe number of the last added frame (acccording to the size of the source action).
 
         :param target_action_name: The target animation action.
         :param source_action_name: The source animation action.
         :param start: The starting keyframe for the given animation action
-        :param print_debug: Debug flag.
+        :param data_path_filter: If given, only the source fcurves whose data_path satisfies the filter are copied.
         """
 
         action_start, action_end = source_action.frame_range
@@ -167,6 +172,8 @@ class Glue:
 
         # Iterate over all the animation curves and copy the data
         for source_fcurve in source_action.fcurves:
+            if data_path_filter is not None and not data_path_filter(source_fcurve.data_path):
+                continue
             target_fcurve = target_action.fcurves.find(
                 source_fcurve.data_path, index=source_fcurve.array_index
             )
@@ -188,31 +195,17 @@ class Glue:
 
         return end
 
-    def realize_mms(self, rows_info: Dict[Tuple[int, str], MMSLineDataInfo], use_rel_time: bool):
+    def realize_mms(self, rows_info: Dict[Tuple[int, str], MMSLineDataInfo], arm_bones: Dict[str, List[str]]):
         """Generate the timing data for individual glosses and merge them into final track.
-        """
 
-        # `last_gloss_end` holds the last frame number of the previous gloss.
-        # In relative time mode, combined with transition duration, it allows to compute the start of the next gloss.
-        #last_gloss_end = 1
+        :param arm_bones: The bones of the "dom" and "ndom" arms, used to realize the (n)domarm overrides of <HOLD> rows.
+        """
 
         for row_idx in self.mms.row_indices:
 
             mms_row = self.mms[row_idx]
             mms_row_info = rows_info[row_idx]
 
-            # if use_rel_time:
-            #     start = last_gloss_end + mms_row.transition()
-
-            #     assert mms_row_info.target_frame_range is not None
-            #     duration = mms_row_info.target_frame_range[1] - mms_row_info.target_frame_range[0] + 1
-            #     end = start + duration
-
-            # else:
-            #     start, end = mms_row.timing()
-            #     # We start filling our timeline from frame 1
-            #     start += 1
-            #     end += 1
             assert mms_row_info.target_frame_range is not None
             start, end = mms_row_info.target_frame_range
 
@@ -222,18 +215,37 @@ class Glue:
             # held gloss's name, so that the mocap file path resolves correctly. Report "<HOLD>"
             # instead, so the panel reflects what's actually being realized for this row.
             gloss_name = "<HOLD>" if mms_row.is_hold else mms_row.name
+            for side, arm_override in mms_row.arm_overrides.items():
+                arm_gloss_name = "<HOLD>" if arm_override.is_hold else arm_override.name
+                gloss_name += f" +{side}:{arm_gloss_name}"
             self.gloss_timeline.append(
                 GlossSegment(index=row_idx[0], name=gloss_name, start_frame=start, end_frame=end)
             )
 
             if mms_row.is_hold:
 
+                # The arms overridden by another gloss must play their animation, while the rest of the body holds.
+                animated_arm_prefixes = tuple(
+                    f'pose.bones["{bone_name}"]'
+                    for side, arm_override in mms_row.arm_overrides.items() if not arm_override.is_hold
+                    for bone_name in arm_bones[side]
+                )
+
+                inflected_action = bpy.data.actions[f"inflected_{mms_row.output_name}"]  # TODO -- somehow remove this hard-coded name
                 end_frame = self.perform_hold(
                     target_action=self.target_action,
-                    source_action=bpy.data.actions[f"inflected_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name
+                    source_action=inflected_action,
                     start=start,
-                    end=end
+                    end=end,
+                    data_path_filter=lambda data_path: not data_path.startswith(animated_arm_prefixes)
                 )
+                if len(animated_arm_prefixes) > 0:
+                    self.append_action(
+                        target_action=self.target_action,
+                        source_action=inflected_action,
+                        start=start,
+                        data_path_filter=lambda data_path: data_path.startswith(animated_arm_prefixes)
+                    )
                 end_frame = self.perform_hold(
                     target_action=self.target_shapekeys_action,
                     source_action=bpy.data.actions[f"resampled_blendshapes_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name
@@ -254,8 +266,6 @@ class Glue:
                     source_action=bpy.data.actions[f"resampled_blendshapes_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name
                     start=start
                 )
-
-            #last_gloss_end = end
 
             # We assume that the animation was already scaled. So the returned end_frame must be compatible with
             # the expected end frame. Compatible means +/- 1, according to rounding errors.
