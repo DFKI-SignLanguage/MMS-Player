@@ -123,14 +123,32 @@ Whether this two columns are used, or the absolute values (framestart/end), is s
 This also means that the two methods (absolute or relative) can not be mixed. If these two columns are used, the other two are completely ignored (and vice versa).
 
 
-### GLOSS for (Non-)dominant hand: (n)domgloss
+### GLOSS for (Non-)dominant arm: (n)domarm
 
 While the `maingloss` column specifies the sign that is played back on the whole body, it is possible also to override the animation of the left and right arms with animation data from another signs.
 
-* `domglss` says from which sign to take the data to animate the dominant arm (from the shoulder to the fingertips);
-* `ndomgloss` is the same for the non-dominant arm.
+* `domarm` says from which sign to take the data to animate the dominant (right) arm;
+* `ndomarm` is the same for the non-dominant (left) arm.
 
-In fact, when both `domgloss` and `ndomgloss` columns are specified, we are playing back animation data from three signs simultaneously.
+The overridden bones go from the clavicle to the fingertips (see `assets/arm_bones.json`).
+In fact, when both `domarm` and `ndomarm` columns are specified, we are playing back animation data from three signs simultaneously.
+
+* The override sign is played back with the same duration of the `maingloss` (its full animation is stretched or compressed to fit).
+* The override sign has no inflection parameters of its own. However, the inflections of the row (e.g., `domhandreloc`, `domhandrot`, `domshoulderreloc`) are applied on top of the overridden arm.
+* The `<class>:<gloss>` syntax (e.g., `fa:A`) can be used as in the `maingloss` column.
+* The facial animation is always taken from the `maingloss`.
+* The `<HOLD>` keyword freezes the arm at the pose reached at the end of the previous row (before the previous row's inflections). As for `maingloss`, it can not be used in the first row.
+
+Example: the second row holds the body pose reached at the end of `ZUG`, while the dominant arm plays `INDEX`.
+The fourth row plays `INDEX` on the body, while the dominant arm stays still.
+
+```
+maingloss,framestart,frameend,duration,transition,domarm,ndomarm
+ZUG,0,0,100%,1,,
+<HOLD>,0,0,1,1,INDEX,
+ZUG,0,0,100%,2,,
+INDEX,0,0,100%,2,<HOLD>,
+```
 
 
 ### Hands trajectory: (n)domhandrelocx/y/z/ax/ay/az/sx/sy/sz
