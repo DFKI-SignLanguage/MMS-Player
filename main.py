@@ -26,7 +26,7 @@ sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 
 
 from player.mms_parser import MMSParser, MMSLineDataInfo, ARM_OVERRIDE_COLUMNS
-from player.action_utils import ActionOperator, load_gloss_actions, override_bone_fcurves, hold_bone_fcurves
+from player.action_utils import ActionOperator, load_gloss_actions, resample_action, override_bone_fcurves, hold_bone_fcurves
 from player.merge import Glue, GlossSegment
 from player.inflection import InflectionDirector
 from player.inflection import IKTargetConfig
@@ -577,10 +577,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
             src_action = action_operator.imported_main_armature_action
             mmsline_info.maingloss_original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
 
-            resampled_action = action_operator.resample_action(src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
-            action_operator.resample_action(src_action_name=action_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+            resampled_action = resample_action(src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+            resample_action(src_action_name=action_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
 
-            # After resampling, the frame range of the actions has been approximated to the integer frame position.
+            # After resampling, actions surely start from frame 1, and their frame range of the actions has been approximated to the integer frame positions.
             resampled_frame_range = resampled_action.frame_range
             logger.info(f"Resampled_range: {resampled_frame_range}, target range: {mmsline_info.target_frame_range}")
 
@@ -610,7 +610,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
                 arm_body_action, arm_shapekeys_action, _ = load_gloss_actions(
                     blend_path=mmsline_info.arm_override_paths[side], gloss_name=arm_override.name, output_name=arm_output_name)
                 # The override gloss lasts as much as the main gloss.
-                arm_resampled_action = ActionOperator.resample_action(
+                arm_resampled_action = resample_action(
                     src_action_name=arm_body_action.name, target_action_name="resampled_" + arm_output_name,
                     target_framecount=mmsline_info.resampled_duration_frames)
                 override_bone_fcurves(target_action=resampled_action, source_action=arm_resampled_action, bone_names=ARM_BONES[side])
@@ -680,6 +680,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         if prev_resampled_action is not None:
             bpy.data.actions.remove(prev_resampled_action)
         prev_resampled_action = bpy.data.actions.get("resampled_" + mmsline.output_name)
+
+        #
+        # END of the main MMS row scanning and action manipulation loop
+        #
 
     if prev_resampled_action is not None:
         bpy.data.actions.remove(prev_resampled_action)

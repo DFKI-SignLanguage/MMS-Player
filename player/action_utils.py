@@ -187,43 +187,42 @@ class ActionOperator:
             load_gloss_actions(blend_path=blend_path, gloss_name=mms_line.name, output_name=mms_line.output_name)
 
 
-    @staticmethod
-    def resample_action(src_action_name: str, target_action_name: str, target_framecount: int) -> bpy.types.Action:
-        """Resample the given source action into a new action with the given target name.
-        Operates purely on the action's f-curves, so it works regardless of what the action animates
-        (armature bones, shape keys, ...) and requires no armature or bone-name knowledge.
+def resample_action(src_action_name: str, target_action_name: str, target_framecount: int) -> bpy.types.Action:
+    """Resample the given source action into a new action with the given target name.
+    Operates purely on the action's f-curves, so it works regardless of what the action animates
+    (armature bones, shape keys, ...) and requires no armature or bone-name knowledge.
 
-        :param timing:  If use_rel_time is False, the timing is a tuple containing the MMS (framestart, frameend)
-         already converted in frame position.
-          If use_rel_time if True, the timing is a tuple (duration, pct),
-           where the duration can be expressed as absolute vale in frames, or as a percentage of the original duration.
-        :param use_rel_time: whether to use relative timing, or not.
-        :param src_action_name: The name of the existing action
-        :param target_action_name: The name of the action to be created
-        :return: the newly created, resampled action.
-        """
+    :param timing:  If use_rel_time is False, the timing is a tuple containing the MMS (framestart, frameend)
+        already converted in frame position.
+        If use_rel_time if True, the timing is a tuple (duration, pct),
+        where the duration can be expressed as absolute vale in frames, or as a percentage of the original duration.
+    :param use_rel_time: whether to use relative timing, or not.
+    :param src_action_name: The name of the existing action
+    :param target_action_name: The name of the action to be created
+    :return: the newly created, resampled action.
+    """
 
-        src_action = bpy.data.actions[src_action_name]
+    src_action = bpy.data.actions[src_action_name]
 
-        sampled_action = bpy.data.actions.new(name=target_action_name)
+    sampled_action = bpy.data.actions.new(name=target_action_name)
 
-        # Mirror every fcurve from the source into the new action
+    # Mirror every fcurve from the source into the new action
+    for src_fcurve in src_action.fcurves:
+        sampled_action.fcurves.new(data_path=src_fcurve.data_path, index=src_fcurve.array_index)
+
+    # Build sample points spanning the source frame range
+    frame_start = int(src_action.frame_range[0])
+    frame_end = int(src_action.frame_range[1])
+    target_frame_count = int(target_framecount)
+    ratio = (frame_end - frame_start) / (target_frame_count - 1)
+    samples = [frame_start + x * ratio for x in range(target_frame_count)]
+
+    for frame_number, sample in enumerate(samples):
         for src_fcurve in src_action.fcurves:
-            sampled_action.fcurves.new(data_path=src_fcurve.data_path, index=src_fcurve.array_index)
+            sampled_value = src_fcurve.evaluate(sample)
+            target_fcurve = sampled_action.fcurves.find(src_fcurve.data_path, index=src_fcurve.array_index)
+            target_fcurve.keyframe_points.insert(frame_number + 1, sampled_value)
 
-        # Build sample points spanning the source frame range
-        frame_start = int(src_action.frame_range[0])
-        frame_end = int(src_action.frame_range[1])
-        target_frame_count = int(target_framecount)
-        ratio = (frame_end - frame_start) / (target_frame_count - 1)
-        samples = [frame_start + x * ratio for x in range(target_frame_count)]
+    assert target_action_name in bpy.data.actions
 
-        for frame_number, sample in enumerate(samples):
-            for src_fcurve in src_action.fcurves:
-                sampled_value = src_fcurve.evaluate(sample)
-                target_fcurve = sampled_action.fcurves.find(src_fcurve.data_path, index=src_fcurve.array_index)
-                target_fcurve.keyframe_points.insert(frame_number + 1, sampled_value)
-
-        assert target_action_name in bpy.data.actions
-
-        return sampled_action
+    return sampled_action
