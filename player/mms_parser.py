@@ -18,11 +18,8 @@
 # Parse the mms and trim the motion capture data from the library.
 #
 
-import argparse
 import csv
 import mathutils
-import math
-import os
 import re
 
 from collections import OrderedDict
@@ -225,123 +222,6 @@ class MMSLine:
             return float(duration), False
 
 
-class MMSLineDataInfo:
-    """Auxiliary information to an MMSLine, holding information that can be retrieved only at run-time.
-    """
-
-    def __init__(self, mms_line: MMSLine):
-
-        self.mms_line = mms_line
-
-        # Filled later while scanning or loading the blend files
-        self.maingloss_path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
-        # Paths to the Blend scenes of the glosses overriding the arms. Keys are "dom" and "ndom". <HOLD> overrides have no path.
-        self.arm_override_paths: Dict[str, Path] = {}
-
-        self.maingloss_original_frame_range: Optional[Tuple[float, float]] = None
-        # TODO --  we will need to store also the framerate of the source Blenderr file, to proper resamplings among different FPS.
-        # self.maingloss_original_FPS: float
-
-        # The resampled range of this gloss on the final timeline
-        # self.resampled_frame_range: Optional[Tuple[int, int]] = None
-
-        # The new duration of this gloss, in frames
-        self.resampled_duration_frames: int
-        # Transition in frames from the last frame of the previous gloss
-        #self.transition_frames: int
-
-        # The target framerange on the final timeline
-        self.target_frame_range: Optional[Tuple[int, int]] = None
-
-    def compose_file_paths(self, dictionary_root: Path) -> None:
-        """
-        Compose the gloss path and verify that the path exists.
-        If the required file doesn't exist, an Exception is thrown.
-        """
-
-        maingloss_blend_file = f"{self.mms_line.name}.blend"
-
-        self.maingloss_path = dictionary_root / self.mms_line.datatype / "trimmed" / maingloss_blend_file
-        assert self.maingloss_path is not None
-
-        if not self.maingloss_path.exists():
-            raise Exception(f"Expected gloss file '{self.maingloss_path}' not present for '{self.mms_line.name}'.")
-
-        for side, arm_override in self.mms_line.arm_overrides.items():
-            if arm_override.is_hold:
-                continue
-            assert arm_override.name is not None and arm_override.datatype is not None
-            arm_path = dictionary_root / arm_override.datatype / "trimmed" / f"{arm_override.name}.blend"
-            if not arm_path.exists():
-                raise Exception(f"Expected gloss file '{arm_path}' not present for {ARM_OVERRIDE_COLUMNS[side]} '{arm_override.name}'.")
-            self.arm_override_paths[side] = arm_path
-
-    def compute_target_frame_range(self, use_rel_time: bool, src_action_duration_secs: float, last_gloss_end_frame: int, target_fps: float) -> None:
-
-        if use_rel_time:
-            # If relative timing is used, we use the duration and transition properties of the MMS
-            duration_val, duration_relative = self.mms_line.duration()
-            if duration_relative:
-                duration_secs = src_action_duration_secs * duration_val
-                # frame_start = int(src_action.frame_range[0])
-                # frame_end = int(src_action.frame_range[1])
-                # target_frame_count = math.ceil(duration_or_prop * (frame_end - frame_start) + 1)
-            else:
-                duration_secs = duration_val
-
-            transition_secs = self.mms_line.transition()
-
-            # Consider total timing, then compute the transition in frames as approximated frame count and derive then the duration in frames.
-            tot_time_secs = duration_secs + transition_secs
-
-            tot_time_frames = math.ceil(tot_time_secs * target_fps)
-
-            # Give priority /maximize the framecount for the 
-            self.resampled_duration_frames = math.ceil(duration_secs * target_fps)
-
-            transition_frames = tot_time_frames - self.resampled_duration_frames
-
-            self.target_frame_range = ( \
-                last_gloss_end_frame + transition_frames, \
-                last_gloss_end_frame + transition_frames + self.resampled_duration_frames - 1 \
-            )
-
-        else:
-            # Here the absolute timing is used. Get it from the two start/end columns of the MMS
-            start_secs, end_secs = self.mms_line.timing()
-
-            # Consider the target scene FPS to get the approximation in frames
-            #
-            # Approximate to the last integer frame. Example for 60 fps (frame duration = 0.01666_)
-            # math.floor(0.0 * 60.0) --> 0
-            # math.floor(0.0166 * 60.0) --> 0
-            # math.floor(0.0167 * 60.0) --> 1
-            # ...
-            # math.floor(0.9999 * 60.0) --> 59
-            # math.floor(1.0 * 60.0) --> 60
-            #
-            # We add +1 because we start filling our timeline from frame 1
-            self.target_frame_range = ( \
-                math.floor(start_secs * target_fps) + 1, \
-                math.floor(end_secs * target_fps) + 1 \
-            )
-
-            # The duration is a direct consequence
-            self.resampled_duration_frames = self.target_frame_range[1] - self.target_frame_range[0] + 1
-
-        assert self.target_frame_range is not None
-        # The duration in frames is related to the frame range
-        assert self.resampled_duration_frames == self.target_frame_range[1] - self.target_frame_range[0] + 1
-        assert self.target_frame_range[1] >= self.target_frame_range[0]
-
-        if self.resampled_duration_frames == 0:
-            raise Exception("A gloss execution must last at least 1 frame.")
-
-        if self.target_frame_range[0] < last_gloss_end_frame:
-            raise Exception(f"Negative transition between glosses. New gloss start frame ({self.target_frame_range[0]}) is less than the last gloss end frame ({last_gloss_end_frame}).")
-
-
-
 class MMS:
     """MMS table representation.
     
@@ -444,32 +324,32 @@ class MMSParser:
 
 
 # TODO -- Convert this into a test unit
-if __name__ == "__main__":
-    # Simple test to verify whether the parser is working or not
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--mms-file", type=str)
-    args = parser.parse_args()
-    args.mms_file = os.environ["AVASAG_CORPUS_DIR"] + "/generated/mms/0009.mms"
-    args.generated_root = os.environ["AVASAG_CORPUS_DIR"] + "/generated"
-    parser = MMSParser(args.mms_file)
-    parsed_mms = parser.parse()
-    for mms_gloss in parsed_mms.row_indices:
-        print("========================================")
-        print(f"Using {parsed_mms[mms_gloss].output_name}")
-        print("Timing: ", parsed_mms[mms_gloss].timing())
-        print("Translation [ Dom]: \n", parsed_mms[mms_gloss].translation("dom"))
-        print("Translation [nDom]: \n", parsed_mms[mms_gloss].translation("ndom"))
+# if __name__ == "__main__":
+#     # Simple test to verify whether the parser is working or not
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--mms-file", type=str)
+#     args = parser.parse_args()
+#     args.mms_file = os.environ["AVASAG_CORPUS_DIR"] + "/generated/mms/0009.mms"
+#     args.generated_root = os.environ["AVASAG_CORPUS_DIR"] + "/generated"
+#     parser = MMSParser(args.mms_file)
+#     parsed_mms = parser.parse()
+#     for mms_gloss in parsed_mms.row_indices:
+#         print("========================================")
+#         print(f"Using {parsed_mms[mms_gloss].output_name}")
+#         print("Timing: ", parsed_mms[mms_gloss].timing())
+#         print("Translation [ Dom]: \n", parsed_mms[mms_gloss].translation("dom"))
+#         print("Translation [nDom]: \n", parsed_mms[mms_gloss].translation("ndom"))
 
-        print("Rotation [ Dom]: \n", parsed_mms[mms_gloss].traj_rotation("dom"))
-        print("Rotation [nDom]: \n", parsed_mms[mms_gloss].traj_rotation("ndom"))
+#         print("Rotation [ Dom]: \n", parsed_mms[mms_gloss].traj_rotation("dom"))
+#         print("Rotation [nDom]: \n", parsed_mms[mms_gloss].traj_rotation("ndom"))
 
-        print("Scale [ Dom]: \n", parsed_mms[mms_gloss].scale("dom"))
-        print("Scale [nDom]: \n", parsed_mms[mms_gloss].scale("ndom"))
+#         print("Scale [ Dom]: \n", parsed_mms[mms_gloss].scale("dom"))
+#         print("Scale [nDom]: \n", parsed_mms[mms_gloss].scale("ndom"))
 
-        print("Shoulder Shift [ Dom]: \n", parsed_mms[mms_gloss].shoulder_shift("dom"))
-        print("Shoulder Shift [nDom]: \n", parsed_mms[mms_gloss].shoulder_shift("ndom"))
+#         print("Shoulder Shift [ Dom]: \n", parsed_mms[mms_gloss].shoulder_shift("dom"))
+#         print("Shoulder Shift [nDom]: \n", parsed_mms[mms_gloss].shoulder_shift("ndom"))
 
-        print("Torso [Position]: \n", parsed_mms[mms_gloss].torso_shift())
-        print("Torso [Rotation]: \n", parsed_mms[mms_gloss].torso_rot())
+#         print("Torso [Position]: \n", parsed_mms[mms_gloss].torso_shift())
+#         print("Torso [Rotation]: \n", parsed_mms[mms_gloss].torso_rot())
 
-        print("Head [Rotation]: \n", parsed_mms[mms_gloss].head_rot())
+#         print("Head [Rotation]: \n", parsed_mms[mms_gloss].head_rot())

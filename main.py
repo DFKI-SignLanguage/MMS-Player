@@ -25,9 +25,9 @@ MMS_PLAYER_ROOT_PATH = Path(__file__).resolve().parent
 sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 
 
-from player.mms_parser import MMSParser, MMSLineDataInfo, ARM_OVERRIDE_COLUMNS
-from player.action_utils import ActionOperator, load_gloss_actions, resample_action, override_bone_fcurves, hold_bone_fcurves
-from player.merge import Glue, GlossSegment
+from player.mms_parser import MMSParser, ARM_OVERRIDE_COLUMNS
+from player.action_utils import load_gloss_actions, resample_action, override_bone_fcurves, hold_bone_fcurves
+from player.merge import Glue, GlossSegment, MMSLineDataInfo
 from player.inflection import InflectionDirector
 from player.inflection import IKTargetConfig
 from player.bpy_utils import select_object, duplicate_armature
@@ -434,11 +434,11 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         mmsline = mms[row_idx]
 
         # Instantiate a new euxiliary row data info
-        mms_line_info = MMSLineDataInfo(mms_line=mmsline)
-        rows_info[row_idx] = mms_line_info
+        mmsline_info = MMSLineDataInfo(mms_line=mmsline)
+        rows_info[row_idx] = mmsline_info
 
         # Compose the Blender file name and check for its availability
-        mms_line_info.compose_file_paths(dictionary_root=dictionary_root)
+        mmsline_info.compose_file_paths(dictionary_root=dictionary_root)
 
 
     #
@@ -556,29 +556,29 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # Pass it through the ActionOperator class and prepare the animation for further
         # processing. Since we want to have the same number of frames as the source
         # sentence, we are resampling the animation frames.
-        action_operator = ActionOperator(mmsline_info)
+        # action_operator = ActionOperator(mmsline_info)
 
-        action_operator.load_actions()
+        mmsline_info.load_actions()
 
         # Here the "imported_" actions have been created
-        assert action_operator.imported_main_armature_action is not None
-        assert action_operator.imported_main_shapekeys_action is not None
+        assert mmsline_info.imported_maingloss_armature_action is not None
+        assert mmsline_info.imported_maingloss_shapekeys_action is not None
 
         # Here we perform all the timing computation.
         # It uses teh timing information in the MMSLine, the framrate of the input gloss scene, the desired frame output.
         # After this, all further computations are frame-based. Timings in seconds, relative durations, and framerates can be forgotten.
-        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, src_action_duration_secs=action_operator.imported_main_gloss_duration_secs, last_gloss_end_frame=last_gloss_end, target_fps=target_fps)
+        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, last_gloss_end_frame=last_gloss_end, target_fps=target_fps)
         assert mmsline_info.target_frame_range is not None
         last_gloss_end = mmsline_info.target_frame_range[1]
 
         #
         # Resample actions to a target frame range
         if not arguments.ignore_gloss_duration:
-            src_action = action_operator.imported_main_armature_action
-            mmsline_info.maingloss_original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
+            src_action = mmsline_info.imported_maingloss_armature_action
+            mmsline_info.imported_maingloss_frame_range = src_action.frame_range[0], src_action.frame_range[1]
 
             resampled_action = resample_action(src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
-            resample_action(src_action_name=action_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+            resample_action(src_action_name=mmsline_info.imported_maingloss_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
 
             # After resampling, actions surely start from frame 1, and their frame range of the actions has been approximated to the integer frame positions.
             resampled_frame_range = resampled_action.frame_range
@@ -591,6 +591,9 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         # Here the "resampled_..." action has been created
         assert "resampled_" + mmsline.output_name in bpy.data.actions
+
+        assert mmsline_info.imported_maingloss_armature_action is not None
+
 
         #
         # Override the animation of the arms (domarm/ndomarm columns), before the inflection.
@@ -627,6 +630,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         inflected_armature = duplicate_armature(armature_obj=target_armature, named_action=inflected_action)
         # Here an empty target "inflected_..." action has been created
         assert f"inflected_{mmsline.output_name}" in bpy.data.actions
+
 
         #
         # Setup the inflection procedure
@@ -669,8 +673,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         # The intermediate actions superseded by "resampled_"/"inflected_".
         for stale_action_name in (
-            action_operator.imported_main_armature_action.name,
-            action_operator.imported_main_shapekeys_action.name,
+            mmsline_info.imported_maingloss_armature_action.name,
+            mmsline_info.imported_maingloss_shapekeys_action.name,
         ):
             stale_action = bpy.data.actions.get(stale_action_name)
             if stale_action is not None:

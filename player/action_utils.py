@@ -20,10 +20,10 @@
 
 import bpy
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
 from .logging import logger
-from .mms_parser import MMSLineDataInfo
+
 
 # Naming convention prefixes for the actions present in a source gloss blend file.
 BODY_ACTION_PREFIX = "updated_"
@@ -153,38 +153,6 @@ def hold_bone_fcurves(target_action: bpy.types.Action, source_action: bpy.types.
         target_fcurve.keyframe_points.insert(1, last_value, options={"FAST"})
         target_fcurve.keyframe_points.insert(n_frames, last_value, options={"FAST"})
         target_fcurve.update()
-
-
-class ActionOperator:
-    """This utility class has the methods to:
-
-    1. Load the gloss animation(s) needed to realize a given MMSLine.
-    2. Resample an action to a given target frame number
-    """
-
-    def __init__(self, mms_line_info: MMSLineDataInfo) -> None:
-
-        self.mms_line_info = mms_line_info
-
-        self.imported_main_armature_action: Optional[bpy.types.Action] = None
-        self.imported_main_shapekeys_action: Optional[bpy.types.Action] = None
-
-        self.imported_main_gloss_duration_secs: float
-
-    def load_actions(self) -> None:
-        """Load the gloss's actions into the scene.
-
-        This code copies the assets from the library and links it into the current blender context.
-        """
-
-        blend_path = self.mms_line_info.maingloss_path
-
-        if blend_path is None:
-            raise Exception(f"No file path stored for '{self.mms_line_info.mms_line.output_name}'.")
-
-        mms_line = self.mms_line_info.mms_line
-        self.imported_main_armature_action, self.imported_main_shapekeys_action, self.imported_main_gloss_duration_secs = \
-            load_gloss_actions(blend_path=blend_path, gloss_name=mms_line.name, output_name=mms_line.output_name)
 
 
 def resample_action(src_action_name: str, target_action_name: str, target_framecount: int) -> bpy.types.Action:
