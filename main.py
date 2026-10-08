@@ -806,11 +806,11 @@ if __name__ == "__main__":
     argv = sys.argv
 
     if "--" in argv:
-        # Used when the script is invoked from within Blender.
+        # Used when the script is invoked with `blender` as command.
         print("Taking arguments after --...")
         argv = argv[argv.index("--") + 1:]
     else:
-        # Used when the script is invoked from the command line.
+        # Used when the script is invoked with `python` as command.
         argv = argv[1:]
 
     print("Parsing arguments...")
