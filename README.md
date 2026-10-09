@@ -37,9 +37,9 @@ The [MMS input format](Docs/MMS.md) (Multimodal SignStream) is a machine-and-hum
    <img src="Docs/Videos/FingerAlphabet.gif" width="33%" alt="Preview of finger spelling animation" /> [source MMS](MMS-examples/FingerAlphabet.mms.csv)
    <img src="Docs/Videos/Numbers-0-19.gif" width="33%" alt="Preview of numbers between 0 and 19" /> [source MMS](MMS-examples/Numbers-0-19.mms.csv)
 
-6. Simultaneous glosses. It is posible to override arms animation with either another gloss or the `<HOLD>` keyword.
+6. Simultaneous glosses. It is possible to override arms animation with either another gloss or the `<HOLD>` keyword.
 
-   <img src="Docs/Videos/SimultaneousGlosses.gif" width="33%" alt="Overriding arms animation by playing another gloss or holding a position." /> [source MMS](MMS-examples/SimultaneousGlosses.gif.mms.csv)
+   <img src="Docs/Videos/SimultaneousGlosses.gif" width="33%" alt="Overriding arms animation by playing another gloss or holding a position." /> [source MMS](MMS-examples/SimultaneousGlosses.mms.csv)
 
 For more information and examples on the MMS, please refer to the included [MMS description](Docs/MMS.md).
 
