@@ -89,13 +89,13 @@ class MMSLineDataInfo:
         If the required file doesn't exist, an Exception is thrown.
         """
 
-        maingloss_blend_file = f"{self.mms_line.name}.blend"
+        maingloss_blend_file = f"{self.mms_line.maingloss_info.name}.blend"
 
-        self.maingloss_path = dictionary_root / self.mms_line.datatype / "trimmed" / maingloss_blend_file
+        self.maingloss_path = dictionary_root / self.mms_line.maingloss_info.datatype / "trimmed" / maingloss_blend_file
         assert self.maingloss_path is not None
 
         if not self.maingloss_path.exists():
-            raise Exception(f"Expected gloss file '{self.maingloss_path}' not present for '{self.mms_line.name}'.")
+            raise Exception(f"Expected gloss file '{self.maingloss_path}' not present for '{self.mms_line.maingloss_info.name}'.")
 
         for side, arm_override in self.mms_line.arm_overrides.items():
             if arm_override.is_hold:
@@ -112,14 +112,14 @@ class MMSLineDataInfo:
         This code copies the assets from the library and links it into the current blender context.
         """
 
-        blend_path = self.maingloss_path
-
-        if blend_path is None:
+        if self.maingloss_path is None:
             raise Exception(f"No file path stored for '{self.mms_line.output_name}'.")
 
-        mms_line = self.mms_line
+        # Import actions for maingloss
         self.imported_maingloss_armature_action, self.imported_maingloss_shapekeys_action, self.imported_maingloss_duration_secs = \
-            load_gloss_actions(blend_path=blend_path, gloss_name=mms_line.name, output_name=mms_line.output_name)
+            load_gloss_actions(blend_path=self.maingloss_path, gloss_name=self.mms_line.maingloss_info.name, output_name=self.mms_line.output_name)
+
+
 
     def compute_target_frame_range(self, use_rel_time: bool, last_gloss_end_frame: int, target_fps: float) -> None:
 
@@ -361,7 +361,7 @@ class Glue:
             # For a <HOLD> row, `.name` has been overwritten (in ensure_mocap_data_files()) to the
             # held gloss's name, so that the mocap file path resolves correctly. Report "<HOLD>"
             # instead, so the panel reflects what's actually being realized for this row.
-            gloss_name = "<HOLD>" if mms_row.is_hold else mms_row.name
+            gloss_name = "<HOLD>" if mms_row.maingloss_info.is_hold else mms_row.maingloss_info.name
             for side, arm_override in mms_row.arm_overrides.items():
                 arm_gloss_name = "<HOLD>" if arm_override.is_hold else arm_override.name
                 gloss_name += f" +{side}:{arm_gloss_name}"
@@ -369,7 +369,7 @@ class Glue:
                 GlossSegment(index=row_idx[0], name=gloss_name, start_frame=start, end_frame=end)
             )
 
-            if mms_row.is_hold:
+            if mms_row.maingloss_info.is_hold:
 
                 # The arms overridden by another gloss must play their animation, while the rest of the body holds.
                 animated_arm_prefixes = tuple(

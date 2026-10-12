@@ -27,13 +27,15 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict, List
 
 
+DEFAULT_SIGN_TYPE = "signs"
+
 HOLD_KEYWORD = "<HOLD>"
 
 # The names of the MMS columns that can override the animation of the dominant (right) and non-dominant (left) arm.
 ARM_OVERRIDE_COLUMNS = {"dom": "domarm", "ndom": "ndomarm"}
 
 
-class ArmOverride:
+class GlossInfo:
     """The content of a (n)domarm cell: either another gloss to play on the arm bones, or a <HOLD>."""
 
     def __init__(self, name: Optional[str] = None, datatype: Optional[str] = None, is_hold: bool = False):
@@ -58,12 +60,28 @@ class MMSLine:
 
         self.store_index = store_index  # Maps the column name to its index within the MMS row.
         self.line_data = line_data  # The full row of the MMS in text format.
-        self.name, self.datatype = self.find_datatype(line_data[0])  # The gloss itself and its class/type (defauts to 'signs').
-        self.is_hold: bool = False  # Set to true if the gloss in this lione is <HODL>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
-        self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
+        # self.name, self.datatype = self.find_datatype(line_data[0])  # The gloss itself and its class/type (defauts to 'signs').
+        # self.is_hold: bool = False  # Set to true if the gloss in this line is <HOLD>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
+
+        # Parse the main gloss
+        maingloss_idx = self.store_index["maingloss"]
+        
+        main_gloss_info = self.parse_gloss_info(line_data[maingloss_idx])
+        if main_gloss_info is None:
+            raise Exception(f"Row {store_index}: maingloss can not be empty.")
+        self.maingloss_info: GlossInfo = main_gloss_info
+
+        self.output_name = f"{gloss_idx}_{self.maingloss_info.name}"  # A string composing the row counter with the gloss name
+
+        # Parse the arm overrides
+        domarm_idx = self.store_index["domarm"]
+        self.domarm_info: Optional[GlossInfo] = self.parse_gloss_info(line_data[domarm_idx])
+        ndomarm_idx = self.store_index["ndomarm"]
+        self.ndomarm_info: Optional[GlossInfo] = self.parse_gloss_info(line_data[ndomarm_idx])
+
 
         # Optional overrides of the arms animation, from the domarm/ndomarm columns. Keys are "dom" and "ndom".
-        self.arm_overrides: Dict[str, ArmOverride] = {}
+        self.arm_overrides: Dict[str, GlossInfo] = {}
         for side, column in ARM_OVERRIDE_COLUMNS.items():
             if column not in store_index or store_index[column] >= len(line_data):
                 continue
@@ -72,10 +90,10 @@ class MMSLine:
                 continue
             cell = cell.strip()
             if cell == HOLD_KEYWORD:
-                self.arm_overrides[side] = ArmOverride(is_hold=True)
+                self.arm_overrides[side] = GlossInfo(is_hold=True)
             else:
                 arm_name, arm_datatype = self.find_datatype(cell)
-                self.arm_overrides[side] = ArmOverride(name=arm_name, datatype=arm_datatype)
+                self.arm_overrides[side] = GlossInfo(name=arm_name, datatype=arm_datatype)
 
     def __getitem__(self, key):
         return self.line_data[self.store_index[key]]
@@ -88,16 +106,46 @@ class MMSLine:
 
     @staticmethod
     def find_datatype(name) -> Tuple[str, str]:
-        """Handle the syntax <class>:<gloss>.
+        f"""Handle the syntax <class>:<gloss>.
          Returns the class and the gloss in two different strings.
-         If there is no ':', returns the default 'signs' class.
-         E.g.: 'gest:TJA' --> ('TJS', 'gest'); 'ABLAUF' --> ('ABLAUF', 'signs')
+         If there is no ':', returns the default '{DEFAULT_SIGN_TYPE}' class.
+         E.g.: 'gest:TJA' --> ('TJS', 'gest'); 'ABLAUF' --> ('ABLAUF', '{DEFAULT_SIGN_TYPE}')
         """
 
         if ":" not in name:
-            return name, "signs"
+            return name, DEFAULT_SIGN_TYPE
+
         split = name.split(":")
         return split[1], split[0]
+
+    @staticmethod
+    def parse_gloss_info(gloss: Optional[str]) -> Optional[GlossInfo]:
+        """Builds a GlossInfo instance from parsing a not-None string taken from a gloss column.
+        If the input is None, outputs None as well. Otherwise parses the gloss info."""
+
+        # None input makes None Output
+        if gloss is None:
+            return None
+
+        # Empty strings are like None
+        gloss = gloss.strip()
+        if gloss == "":
+            return None
+
+        # If it is a <HOLD>, return immediately
+        if gloss == HOLD_KEYWORD:
+            return GlossInfo(is_hold=True)
+
+        # If there is no column, use the default gloss type
+        if ":" not in gloss:
+            return GlossInfo(name=gloss, datatype=DEFAULT_SIGN_TYPE)
+
+        # Default case: the type is specified
+        split = gloss.split(":")
+        if len(split) == 2:
+            return GlossInfo(name=split[1], datatype=split[0])
+
+        raise Exception(f"Format error for gloss entry '{gloss}'")
 
     def handle_none(self, key) -> Optional[Tuple[float, float, float]]:
         """Retrieves the 3 values of the key + x/y/z.
@@ -284,34 +332,35 @@ class MMSParser:
         }
 
         # Iterates on the MMS data
-        rows_dict = {}
-        rows_list = []
+        rows_dict: Dict[Tuple[int, str], MMSLine] = {}
+        rows_list: List[MMSLine] = []
         for idx, mms_row_str in enumerate(data[1:]):
             # Convert empty values to None.
             mms_row_str = [x if x != "" else None for x in mms_row_str]
-            mms_row = MMSLine(index_for_column, mms_row_str, idx)
-
-            matches = re.findall(r'<(.*?)>', mms_row.name)
+            mms_row = MMSLine(store_index=index_for_column, line_data=mms_row_str, gloss_idx=idx)
 
             if idx == 0:
-                for side, arm_override in mms_row.arm_overrides.items():
-                    if arm_override.is_hold:
-                        raise Exception(f"<HOLD> can not be used in the {ARM_OVERRIDE_COLUMNS[side]} column of the first row of an MMS.")
+                for gloss_info in (mms_row.maingloss_info, mms_row.domarm_info, mms_row.ndomarm_info):
+                    if gloss_info is not None and gloss_info.is_hold:
+                        raise Exception(f"<HOLD> can not be used in the first row of an MMS.")
 
-            if len(matches) > 0 and matches[0] == "HOLD":
+            if mms_row.maingloss_info.is_hold:
                 print(idx, "FOUND HOLD")
-                # We can not handle HOLD is the first sign in the MMS.
-                if idx == 0:
-                    raise Exception("<HOLD> can not be used in the first row of an MMS.")
 
                 prev_line = rows_list[idx - 1]
+
+                # TODO --  in future implementations, the name of the prev row will not be needed
+                assert prev_line.maingloss_info.name is not None
+
                 # Override some mmsline properties
-                mms_row.name = prev_line.name
-                mms_row.datatype = prev_line.datatype
-                mms_row.output_name = f"{idx}_HOLD_" + prev_line.name
+                mms_row.maingloss_info.name = prev_line.maingloss_info.name
+                mms_row.maingloss_info.datatype = prev_line.maingloss_info.datatype
+                mms_row.output_name = f"{idx}_HOLD_" + prev_line.maingloss_info.name
                 mms_row.is_hold = True
 
-            rows_dict[(idx, mms_row.name)] = mms_row
+            assert mms_row.maingloss_info.name is not None
+            # TODO -- will need to simplify this and bring gloss indexing to simple int.
+            rows_dict[(idx, mms_row.maingloss_info.name)] = mms_row
             rows_list.append(mms_row)
 
         assert len(rows_dict) == len(rows_list)

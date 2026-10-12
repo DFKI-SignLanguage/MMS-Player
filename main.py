@@ -553,11 +553,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # TODO -- in case of HOLD, now we are essentially resampling the whole action of the previous gloss.
         #         We could optimize it with an ad-hoc execution branch that simply copies two times the last frame of the previous action.
 
-        # Pass it through the ActionOperator class and prepare the animation for further
-        # processing. Since we want to have the same number of frames as the source
-        # sentence, we are resampling the animation frames.
-        # action_operator = ActionOperator(mmsline_info)
-
+        # Load the actions and prepare other info for further processing.
         mmsline_info.load_actions()
 
         # Here the "imported_" actions have been created
@@ -634,6 +630,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         #
         # Setup the inflection procedure
+        #
+
         inflector = InflectionDirector(target_armature=inflected_armature,
                                src_armature_name=resampled_armature.name,
                                target_configs=ik_target_config_list,
@@ -646,9 +644,14 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
             without_inflection=arguments.without_inflection,
         )
 
+        #
         # Perform the inflection !!!
         if not arguments.without_inflection:
             inflector.execute(inflected_armature, mmsline)
+
+        #
+        # Cleanup
+        #
 
         #
         # Remove unneeded armatures and actions.
