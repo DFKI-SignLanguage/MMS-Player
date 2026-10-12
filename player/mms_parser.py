@@ -39,7 +39,8 @@ class GlossInfo:
     """The content of a (n)domarm cell: either another gloss to play on the arm bones, or a <HOLD>."""
 
     def __init__(self, name: Optional[str] = None, datatype: Optional[str] = None, is_hold: bool = False):
-        assert is_hold or name is not None
+        assert (is_hold and name is None and datatype is None) \
+          or (not is_hold and name is not None and datatype is not None)
         self.name = name  # The gloss to play on the arm. None if is_hold.
         self.datatype = datatype  # The class/type of the gloss. None if is_hold.
         self.is_hold = is_hold  # If True, the arm freezes at the last pose of the previous row.
@@ -60,8 +61,6 @@ class MMSLine:
 
         self.store_index = store_index  # Maps the column name to its index within the MMS row.
         self.line_data = line_data  # The full row of the MMS in text format.
-        # self.name, self.datatype = self.find_datatype(line_data[0])  # The gloss itself and its class/type (defauts to 'signs').
-        # self.is_hold: bool = False  # Set to true if the gloss in this line is <HOLD>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
 
         # Parse the main gloss
         maingloss_idx = self.store_index["maingloss"]
