@@ -565,14 +565,12 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # After this, all further computations are frame-based. Timings in seconds, relative durations, and framerates can be forgotten.
         mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, last_gloss_end_frame=last_gloss_end, target_fps=target_fps, force_100pct=arguments.ignore_gloss_duration)
         assert mmsline_info.target_frame_range is not None
+        # Store value for the next iteration.
         last_gloss_end = mmsline_info.target_frame_range[1]
 
         #
         # Resample actions to a target frame range
-        src_action = mmsline_info.imported_maingloss_armature_action
-        mmsline_info.imported_maingloss_frame_range = src_action.frame_range[0], src_action.frame_range[1]
-
-        resampled_action = resample_action(src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+        resampled_action = resample_action(src_action_name=mmsline_info.imported_maingloss_armature_action.name, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
         resample_action(src_action_name=mmsline_info.imported_maingloss_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
 
         # After resampling, actions surely start from frame 1, and their frame range of the actions has been approximated to the integer frame positions.

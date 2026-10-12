@@ -68,8 +68,6 @@ class MMSLineDataInfo:
         self.imported_maingloss_armature_action: Optional[bpy.types.Action] = None
         # ShapeKeys action for main gloss
         self.imported_maingloss_shapekeys_action: Optional[bpy.types.Action] = None
-        # Original framerate of the main gloss imported action
-        self.imported_maingloss_frame_range: Optional[Tuple[float, float]] = None
         # Store also the framerate of the source Blenderr file, to proper resamplings among different FPS.
         self.imported_maingloss_duration_secs: float
 
