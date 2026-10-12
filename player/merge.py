@@ -94,9 +94,24 @@ class MMSLineDataInfo:
         self.maingloss_path = dictionary_root / self.mms_line.maingloss_info.datatype / "trimmed" / maingloss_blend_file
         assert self.maingloss_path is not None
 
-        if not self.maingloss_path.exists():
-            raise Exception(f"Expected gloss file '{self.maingloss_path}' not present for '{self.mms_line.maingloss_info.name}'.")
+        if self.mms_line.domarm_info is None or self.mms_line.domarm_info.is_hold:
+            self.domarm_path = None
+        else:
+            assert self.mms_line.domarm_info.datatype is not None
+            self.domarm_path = dictionary_root / self.mms_line.domarm_info.datatype / "trimmed" / f"{self.mms_line.domarm_info.name}.blend"
 
+        if self.mms_line.ndomarm_info is None or self.mms_line.ndomarm_info.is_hold:
+            self.ndomarm_path = None
+        else:
+            assert self.mms_line.ndomarm_info.datatype is not None
+            self.ndomarm_path = dictionary_root / self.mms_line.ndomarm_info.datatype / "trimmed" / f"{self.mms_line.ndomarm_info.name}.blend"
+
+        for path in (self.maingloss_path, self.domarm_path, self.ndomarm_path):
+            if path is not None:
+                if not path.exists():
+                    raise Exception(f"Expected gloss file '{path}' not present for '{self.mms_line.store_index}'.")
+
+        # TODO -- to remove
         for side, arm_override in self.mms_line.arm_overrides.items():
             if arm_override.is_hold:
                 continue
@@ -119,6 +134,18 @@ class MMSLineDataInfo:
         self.imported_maingloss_armature_action, self.imported_maingloss_shapekeys_action, self.imported_maingloss_duration_secs = \
             load_gloss_actions(blend_path=self.maingloss_path, gloss_name=self.mms_line.maingloss_info.name, output_name=self.mms_line.output_name)
 
+
+        if self.domarm_path is not None:
+            assert self.mms_line.domarm_info is not None
+            assert self.mms_line.domarm_info.name is not None
+            self.domarm_body_action, self.domarm_shapekeys_action, _ = load_gloss_actions(
+                    blend_path=self.domarm_path, gloss_name=self.mms_line.domarm_info.name, output_name=self.mms_line.output_name + "_domarm")
+
+        if self.ndomarm_path is not None:
+            assert self.mms_line.ndomarm_info is not None
+            assert self.mms_line.ndomarm_info.name is not None
+            self.ndomarm_body_action, self.ndomarm_shapekeys_action, _ = load_gloss_actions(
+                    blend_path=self.ndomarm_path, gloss_name=self.mms_line.ndomarm_info.name, output_name=self.mms_line.output_name + "_ndomarm")
 
 
     def compute_target_frame_range(self, use_rel_time: bool, last_gloss_end_frame: int, target_fps: float) -> None:
