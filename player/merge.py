@@ -148,16 +148,39 @@ class MMSLineDataInfo:
                     blend_path=self.ndomarm_path, gloss_name=self.mms_line.ndomarm_info.name, output_name=self.mms_line.output_name + "_ndomarm")
 
 
-    def compute_target_frame_range(self, use_rel_time: bool, last_gloss_end_frame: int, target_fps: float) -> None:
+    def compute_target_frame_range(self, use_rel_time: bool, last_gloss_end_frame: int, target_fps: float, force_100pct: bool) -> None:
+        """Compute the frame range that this gloss will occupy on the target timeline.
+
+        Sets self.target_frame_range (inclusive start/end frames) and self.resampled_duration_frames.
+
+        With relative timing, the gloss starts after the transition from the previous gloss.
+        The duration comes from the MMS (relative to the original gloss duration, or absolute in seconds),
+        and the transition comes from the MMS transition column. The total time (duration + transition)
+        is rounded up to whole frames. The duration also gets rounded up first, and the transition
+        gets whatever frames are left.
+        With absolute timing, the start/end times from the MMS are converted directly to frames (1-based).
+
+        With relative timing, load_actions() must be called first, because the original gloss duration is needed.
+
+        :param use_rel_time: If True, use the MMS duration/transition columns. Otherwise use the absolute start/end columns.
+        :param last_gloss_end_frame: The end frame of the previous gloss on the timeline. Relative timing starts from here.
+        :param target_fps: The frame rate of the target scene, used to convert seconds to frames.
+        :param force_100pct: If True (and using relative timing), ignore the relative duration and keep the original gloss duration.
+        :raises Exception: If the resulting gloss lasts less than 1 frame, or starts before last_gloss_end_frame.
+        """
 
         if use_rel_time:
-            # If relative timing is used, we use the duration and transition properties of the MMS
             duration_val, duration_relative = self.mms_line.duration()
+
+            # If relative timing is used, we use the duration and transition properties of the MMS
             if duration_relative:
+
+                # If forcing the duration to 100%, set the duration relative value to 1.0
+                if force_100pct:
+                    duration_val = 1.0
+
                 duration_secs = self.imported_maingloss_duration_secs * duration_val
-                # frame_start = int(src_action.frame_range[0])
-                # frame_end = int(src_action.frame_range[1])
-                # target_frame_count = math.ceil(duration_or_prop * (frame_end - frame_start) + 1)
+
             else:
                 duration_secs = duration_val
 

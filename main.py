@@ -563,27 +563,25 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # Here we perform all the timing computation.
         # It uses teh timing information in the MMSLine, the framrate of the input gloss scene, the desired frame output.
         # After this, all further computations are frame-based. Timings in seconds, relative durations, and framerates can be forgotten.
-        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, last_gloss_end_frame=last_gloss_end, target_fps=target_fps)
+        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, last_gloss_end_frame=last_gloss_end, target_fps=target_fps, force_100pct=arguments.ignore_gloss_duration)
         assert mmsline_info.target_frame_range is not None
         last_gloss_end = mmsline_info.target_frame_range[1]
 
         #
         # Resample actions to a target frame range
-        # TODO -- move the check of this argument in the compute_target_frame_range. There, this would lead to simply force 100% duration.
-        if not arguments.ignore_gloss_duration:
-            src_action = mmsline_info.imported_maingloss_armature_action
-            mmsline_info.imported_maingloss_frame_range = src_action.frame_range[0], src_action.frame_range[1]
+        src_action = mmsline_info.imported_maingloss_armature_action
+        mmsline_info.imported_maingloss_frame_range = src_action.frame_range[0], src_action.frame_range[1]
 
-            resampled_action = resample_action(src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
-            resample_action(src_action_name=mmsline_info.imported_maingloss_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+        resampled_action = resample_action(src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+        resample_action(src_action_name=mmsline_info.imported_maingloss_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
 
-            # After resampling, actions surely start from frame 1, and their frame range of the actions has been approximated to the integer frame positions.
-            resampled_frame_range = resampled_action.frame_range
-            logger.info(f"Resampled_range: {resampled_frame_range}, target range: {mmsline_info.target_frame_range}")
+        # After resampling, actions surely start from frame 1, and their frame range of the actions has been approximated to the integer frame positions.
+        resampled_frame_range = resampled_action.frame_range
+        logger.info(f"Resampled_range: {resampled_frame_range}, target range: {mmsline_info.target_frame_range}")
 
-            assert resampled_frame_range[0] == int(resampled_frame_range[0])
-            assert resampled_frame_range[0] == 1.0
-            assert resampled_frame_range[1] == int(resampled_frame_range[1])
+        assert resampled_frame_range[0] == int(resampled_frame_range[0])
+        assert resampled_frame_range[0] == 1.0
+        assert resampled_frame_range[1] == int(resampled_frame_range[1])
 
 
         # Here the "resampled_..." action has been created
@@ -603,8 +601,6 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         #
         # Override the animation of the arms (domarm/ndomarm columns), before the inflection.
         for side, arm_override in mmsline.arm_overrides.items():
-            if arguments.ignore_gloss_duration:
-                raise Exception(f"The {ARM_OVERRIDE_COLUMNS[side]} column can not be used together with --ignore-gloss-duration.")
 
             if arm_override.is_hold:
                 assert prev_inflected_action is not None
