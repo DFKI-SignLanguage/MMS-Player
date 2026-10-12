@@ -570,8 +570,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         #
         # Resample actions to a target frame range
-        resampled_action = resample_action(src_action_name=mmsline_info.imported_maingloss_armature_action.name, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
-        resample_action(src_action_name=mmsline_info.imported_maingloss_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+        resampled_action = resample_action(src_action=mmsline_info.imported_maingloss_armature_action, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+        resample_action(src_action=mmsline_info.imported_maingloss_shapekeys_action, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
 
         # After resampling, actions surely start from frame 1, and their frame range of the actions has been approximated to the integer frame positions.
         resampled_frame_range = resampled_action.frame_range
@@ -613,7 +613,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
                     blend_path=mmsline_info.arm_override_paths[side], gloss_name=arm_override.name, output_name=arm_output_name)
                 # The override gloss lasts as much as the main gloss.
                 arm_resampled_action = resample_action(
-                    src_action_name=arm_body_action.name, target_action_name="resampled_" + arm_output_name,
+                    src_action=arm_body_action, target_action_name="resampled_" + arm_output_name,
                     target_framecount=mmsline_info.resampled_duration_frames)
                 override_bone_fcurves(target_action=resampled_action, source_action=arm_resampled_action, bone_names=ARM_BONES[side])
                 # Only the arm bones of the body action are used. The face animation comes from the main gloss.
@@ -678,17 +678,16 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         bpy.data.armatures.remove(inflected_armature_data)
 
         # The intermediate actions superseded by "inflected_".
-        for stale_action_name in (
-            mmsline_info.imported_maingloss_armature_action.name,
-            mmsline_info.imported_maingloss_shapekeys_action.name,
-            "resampled_" + mmsline.output_name,
+        for stale_action in (
+            mmsline_info.imported_maingloss_armature_action,
+            mmsline_info.imported_maingloss_shapekeys_action,
+            resampled_action
         ):
-            stale_action = bpy.data.actions.get(stale_action_name)
             if stale_action is not None:
                 bpy.data.actions.remove(stale_action)
 
         # The "inflected_" action survives until the Glue step, and is the source for the <HOLD> of the next row.
-        prev_inflected_action = bpy.data.actions[f"inflected_{mmsline.output_name}"]
+        prev_inflected_action = inflected_action # bpy.data.actions[f"inflected_{mmsline.output_name}"]
 
         #
         # END of the main MMS row scanning and action manipulation loop

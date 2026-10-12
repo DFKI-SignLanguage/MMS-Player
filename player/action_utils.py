@@ -155,7 +155,7 @@ def hold_bone_fcurves(target_action: bpy.types.Action, source_action: bpy.types.
         target_fcurve.update()
 
 
-def resample_action(src_action_name: str, target_action_name: str, target_framecount: int) -> bpy.types.Action:
+def resample_action(src_action: bpy.types.Action, target_action_name: str, target_framecount: int) -> bpy.types.Action:
     """Resample the given source action into a new action with the given target name.
     Operates purely on the action's f-curves, so it works regardless of what the action animates
     (armature bones, shape keys, ...) and requires no armature or bone-name knowledge.
@@ -169,8 +169,6 @@ def resample_action(src_action_name: str, target_action_name: str, target_framec
     :param target_action_name: The name of the action to be created
     :return: the newly created, resampled action.
     """
-
-    src_action = bpy.data.actions[src_action_name]
 
     sampled_action = bpy.data.actions.new(name=target_action_name)
 
