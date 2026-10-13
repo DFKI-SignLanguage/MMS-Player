@@ -25,7 +25,7 @@ MMS_PLAYER_ROOT_PATH = Path(__file__).resolve().parent
 sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 
 
-from player.mms_parser import MMSParser, ARM_OVERRIDE_COLUMNS
+from player.mms_parser import MMSParser
 from player.action_utils import load_gloss_actions, resample_action, override_bone_fcurves, hold_bone_fcurves, create_bone_hold_action, create_hold_action
 from player.merge import Glue, GlossSegment, MMSLineDataInfo
 from player.inflection import InflectionDirector

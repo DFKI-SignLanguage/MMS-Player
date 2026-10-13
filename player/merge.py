@@ -26,7 +26,7 @@ import bpy
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple, List, Dict
 
-from .mms_parser import ARM_OVERRIDE_COLUMNS, MMS, MMSLine
+from .mms_parser import MMS, MMSLine
 from .action_utils import load_gloss_actions
 
 from .logging import logger

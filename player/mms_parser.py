@@ -30,16 +30,14 @@ DEFAULT_SIGN_TYPE = "signs"
 
 HOLD_KEYWORD = "<HOLD>"
 
-# The names of the MMS columns that can override the animation of the dominant (right) and non-dominant (left) arm.
-ARM_OVERRIDE_COLUMNS = {"dom": "domarm", "ndom": "ndomarm"}
-
 
 class GlossInfo:
     """The content of a (n)domarm cell: either another gloss to play on the arm bones, or a <HOLD>."""
 
-    def __init__(self, name: Optional[str] = None, datatype: Optional[str] = None, is_hold: bool = False):
+    def __init__(self, column: str, name: Optional[str] = None, datatype: Optional[str] = None, is_hold: bool = False):
         assert (is_hold and name is None and datatype is None) \
           or (not is_hold and name is not None and datatype is not None)
+        self.column = column
         self.name = name  # The gloss to play on the arm. None if is_hold.
         self.datatype = datatype  # The class/type of the gloss. None if is_hold.
         self.is_hold = is_hold  # If True, the arm freezes at the last pose of the previous row.
@@ -64,7 +62,7 @@ class MMSLine:
         # Parse the main gloss
         maingloss_idx = self.store_index["maingloss"]
         
-        main_gloss_info = self.parse_gloss_info(line_data[maingloss_idx])
+        main_gloss_info = self.parse_gloss_info(column="maingloss", cell_content=line_data[maingloss_idx])
         if main_gloss_info is None:
             raise Exception(f"Row {store_index}: maingloss can not be empty.")
         self.maingloss_info: GlossInfo = main_gloss_info
@@ -73,9 +71,9 @@ class MMSLine:
 
         # Parse the arm overrides
         domarm_idx = self.store_index["domarm"]
-        self.domarm_info: Optional[GlossInfo] = self.parse_gloss_info(line_data[domarm_idx])
+        self.domarm_info: Optional[GlossInfo] = self.parse_gloss_info(column="domarm", cell_content=line_data[domarm_idx])
         ndomarm_idx = self.store_index["ndomarm"]
-        self.ndomarm_info: Optional[GlossInfo] = self.parse_gloss_info(line_data[ndomarm_idx])
+        self.ndomarm_info: Optional[GlossInfo] = self.parse_gloss_info(column="ndomarm", cell_content=line_data[ndomarm_idx])
 
 
     def __getitem__(self, key):
@@ -88,33 +86,33 @@ class MMSLine:
         return list(self.store_index.keys())
 
     @staticmethod
-    def parse_gloss_info(gloss: Optional[str]) -> Optional[GlossInfo]:
+    def parse_gloss_info(column: str, cell_content: Optional[str]) -> Optional[GlossInfo]:
         """Builds a GlossInfo instance from parsing a not-None string taken from a gloss column.
         If the input is None, outputs None as well. Otherwise parses the gloss info."""
 
         # None input makes None Output
-        if gloss is None:
+        if cell_content is None:
             return None
 
         # Empty strings are like None
-        gloss = gloss.strip()
-        if gloss == "":
+        cell_content = cell_content.strip()
+        if cell_content == "":
             return None
 
         # If it is a <HOLD>, return immediately
-        if gloss == HOLD_KEYWORD:
-            return GlossInfo(is_hold=True)
+        if cell_content == HOLD_KEYWORD:
+            return GlossInfo(column=column, is_hold=True)
 
         # If there is no column, use the default gloss type
-        if ":" not in gloss:
-            return GlossInfo(name=gloss, datatype=DEFAULT_SIGN_TYPE)
+        if ":" not in cell_content:
+            return GlossInfo(column=column, name=cell_content, datatype=DEFAULT_SIGN_TYPE)
 
         # Default case: the type is specified
-        split = gloss.split(":")
+        split = cell_content.split(":")
         if len(split) == 2:
-            return GlossInfo(name=split[1], datatype=split[0])
+            return GlossInfo(column=column, name=split[1], datatype=split[0])
 
-        raise Exception(f"Format error for gloss entry '{gloss}'")
+        raise Exception(f"Format error for gloss entry '{cell_content}'")
 
     def handle_none(self, key) -> Optional[Tuple[float, float, float]]:
         """Retrieves the 3 values of the key + x/y/z.
