@@ -20,7 +20,6 @@
 
 import csv
 import mathutils
-import re
 
 from collections import OrderedDict
 from pathlib import Path
@@ -46,7 +45,7 @@ class GlossInfo:
         self.is_hold = is_hold  # If True, the arm freezes at the last pose of the previous row.
 
     def __repr__(self):
-        return "ArmOverride(<HOLD>)" if self.is_hold else f"ArmOverride({self.datatype}:{self.name})"
+        return "GlossInfo(<HOLD>)" if self.is_hold else f"GlossInfo({self.datatype}:{self.name})"
 
 
 class MMSLine:
@@ -79,43 +78,14 @@ class MMSLine:
         self.ndomarm_info: Optional[GlossInfo] = self.parse_gloss_info(line_data[ndomarm_idx])
 
 
-        # Optional overrides of the arms animation, from the domarm/ndomarm columns. Keys are "dom" and "ndom".
-        self.arm_overrides: Dict[str, GlossInfo] = {}
-        for side, column in ARM_OVERRIDE_COLUMNS.items():
-            if column not in store_index or store_index[column] >= len(line_data):
-                continue
-            cell = self[column]
-            if cell is None or cell.strip() == "":
-                continue
-            cell = cell.strip()
-            if cell == HOLD_KEYWORD:
-                self.arm_overrides[side] = GlossInfo(is_hold=True)
-            else:
-                arm_name, arm_datatype = self.find_datatype(cell)
-                self.arm_overrides[side] = GlossInfo(name=arm_name, datatype=arm_datatype)
-
     def __getitem__(self, key):
         return self.line_data[self.store_index[key]]
 
     def __repr__(self):
-        return f"(MMSLine for {self.name} {self.datatype})"
+        return f"(MMSLine {self.store_index} for {self.maingloss_info})"
 
     def keys(self):
         return list(self.store_index.keys())
-
-    @staticmethod
-    def find_datatype(name) -> Tuple[str, str]:
-        f"""Handle the syntax <class>:<gloss>.
-         Returns the class and the gloss in two different strings.
-         If there is no ':', returns the default '{DEFAULT_SIGN_TYPE}' class.
-         E.g.: 'gest:TJA' --> ('TJS', 'gest'); 'ABLAUF' --> ('ABLAUF', '{DEFAULT_SIGN_TYPE}')
-        """
-
-        if ":" not in name:
-            return name, DEFAULT_SIGN_TYPE
-
-        split = name.split(":")
-        return split[1], split[0]
 
     @staticmethod
     def parse_gloss_info(gloss: Optional[str]) -> Optional[GlossInfo]:
@@ -344,8 +314,6 @@ class MMSParser:
                         raise Exception(f"<HOLD> can not be used in the first row of an MMS.")
 
             if mms_row.maingloss_info.is_hold:
-                print(idx, "FOUND HOLD")
-
                 prev_line = rows_list[idx - 1]
 
                 # TODO --  in future implementations, the name of the prev row will not be needed
@@ -355,7 +323,6 @@ class MMSParser:
                 mms_row.maingloss_info.name = prev_line.maingloss_info.name
                 mms_row.maingloss_info.datatype = prev_line.maingloss_info.datatype
                 mms_row.output_name = f"{idx}_HOLD_" + prev_line.maingloss_info.name
-                mms_row.is_hold = True
 
             assert mms_row.maingloss_info.name is not None
             # TODO -- will need to simplify this and bring gloss indexing to simple int.

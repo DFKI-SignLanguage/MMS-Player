@@ -155,6 +155,34 @@ def hold_bone_fcurves(target_action: bpy.types.Action, source_action: bpy.types.
         target_fcurve.update()
 
 
+def create_bone_hold_action(target_action_name: str, source_action: bpy.types.Action, bone_names: List[str], n_frames: int) -> bpy.types.Action:
+    """Similar to the previous method, but in this case creates a new action performing the hold of the source one.
+    The last frame of the source action is used to hold the position of the bone specified."""
+
+    hold_action = bpy.data.actions.new(name=target_action_name)
+    hold_bone_fcurves(target_action=hold_action, source_action=source_action, bone_names=bone_names, n_frames=n_frames)
+
+    return hold_action
+
+
+def create_hold_action(target_action_name: str, source_action: bpy.types.Action, n_frames: int) -> bpy.types.Action:
+    """Creates a new action holding, for all the shape keys animated by the source action, the value of their last keyframe.
+    The new fcurves are constant and keyed at frames 1 and n_frames."""
+
+    hold_action = bpy.data.actions.new(name=target_action_name)
+
+    for source_fcurve in source_action.fcurves:
+        if len(source_fcurve.keyframe_points) == 0:
+            continue
+        last_value = source_fcurve.keyframe_points[-1].co[1]
+        target_fcurve = hold_action.fcurves.new(data_path=source_fcurve.data_path, index=source_fcurve.array_index)
+        target_fcurve.keyframe_points.insert(1, last_value, options={"FAST"})
+        target_fcurve.keyframe_points.insert(n_frames, last_value, options={"FAST"})
+        target_fcurve.update()
+
+    return hold_action
+
+
 def resample_action(src_action: bpy.types.Action, target_action_name: str, target_framecount: int) -> bpy.types.Action:
     """Resample the given source action into a new action with the given target name.
     Operates purely on the action's f-curves, so it works regardless of what the action animates

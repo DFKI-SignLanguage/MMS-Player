@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+- Major revision of the main MMS realization cycle: eliminated action reference relying on their name, movedmanagement of maingloss HOLD into the main top-level cycle.
+- Fix: <HOLD> is now correctly freezing the pose of the inflected animation, not the imported one.
 
 ## [0.5.0] - 2026-10-07
 
