@@ -45,6 +45,15 @@ class GlossInfo:
     def __repr__(self):
         return "GlossInfo(<HOLD>)" if self.is_hold else f"GlossInfo({self.datatype}:{self.name})"
 
+    def to_compact_string(self) -> str:
+        if self.is_hold:
+            out = "<HOLD>"
+        else:
+            assert self.name is not None
+            out = self.name
+
+        return self.column + ":" + out
+
 
 class MMSLine:
     """MMSLine represents a single row of the MMS table.
@@ -67,7 +76,7 @@ class MMSLine:
             raise Exception(f"Row {store_index}: maingloss can not be empty.")
         self.maingloss_info: GlossInfo = main_gloss_info
 
-        self.output_name = f"{gloss_idx}_{self.maingloss_info.name}"  # A string composing the row counter with the gloss name
+        self.output_name = f"{gloss_idx}_" + self.maingloss_info.to_compact_string()  # A string composing the row counter with the gloss name
 
         # Parse the arm overrides
         domarm_idx = self.store_index["domarm"]

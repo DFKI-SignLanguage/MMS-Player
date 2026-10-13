@@ -142,6 +142,7 @@ class MMSLineDataInfo:
             raise Exception(f"No file path stored for '{self.mms_line.output_name}'.")
 
         assert self.maingloss_path is not None
+        assert self.maingloss_path.name is not None
 
         # Import actions for maingloss
         self.imported_maingloss_armature_action, self.imported_maingloss_shapekeys_action, self.imported_maingloss_duration_secs = \
@@ -387,11 +388,12 @@ class Glue:
             # For a <HOLD> row, `.name` has been overwritten (in ensure_mocap_data_files()) to the
             # held gloss's name, so that the mocap file path resolves correctly. Report "<HOLD>"
             # instead, so the panel reflects what's actually being realized for this row.
-            panel_txt = "<HOLD>" if mms_row.maingloss_info.is_hold else mms_row.maingloss_info.name
+            panel_txt = mms_row.maingloss_info.to_compact_string()
             if mms_row.domarm_info is not None:
-                panel_txt += " +dom:" + ("<HOLD>" if mms_row.domarm_info.is_hold else mms_row.domarm_info.name)
+                assert mms_row.domarm_info is not None
+                panel_txt += " +" + mms_row.domarm_info.to_compact_string()
             if mms_row.ndomarm_info is not None:
-                panel_txt += " +ndom:" + ("<HOLD>" if mms_row.ndomarm_info.is_hold else mms_row.ndomarm_info.name)
+                panel_txt += " +" + mms_row.ndomarm_info.to_compact_string()
 
             # for side, arm_override in mms_row.arm_overrides.items():
             #     arm_gloss_name = "<HOLD>" if arm_override.is_hold else arm_override.name
