@@ -63,36 +63,38 @@ class MMSLine:
     for the inflection of the corresponding sign.
     """
 
-    def __init__(self, store_index: Dict[str, int], line_data: List[Optional[str]], gloss_idx: int):
+    def __init__(self, column_indices: Dict[str, int], line_data: List[Optional[str]], gloss_idx: int):
 
-        self.store_index = store_index  # Maps the column name to its index within the MMS row.
+        self.column_indices_dict = column_indices  # Maps the column name to its index within the MMS row.
         self.line_data = line_data  # The full row of the MMS in text format.
+        self.idx = gloss_idx  # The sequential row number in the MMS, from 0.
 
         # Parse the main gloss
-        maingloss_idx = self.store_index["maingloss"]
+        maingloss_idx = self.column_indices_dict["maingloss"]
         
         main_gloss_info = self.parse_gloss_info(column="maingloss", cell_content=line_data[maingloss_idx])
         if main_gloss_info is None:
-            raise Exception(f"Row {store_index}: maingloss can not be empty.")
+            raise Exception(f"Row {self.idx}: maingloss can not be empty.")
+
         self.maingloss_info: GlossInfo = main_gloss_info
 
         self.output_name = f"{gloss_idx}_" + self.maingloss_info.to_compact_string()  # A string composing the row counter with the gloss name
 
         # Parse the arm overrides
-        domarm_idx = self.store_index["domarm"]
+        domarm_idx = self.column_indices_dict["domarm"]
         self.domarm_info: Optional[GlossInfo] = self.parse_gloss_info(column="domarm", cell_content=line_data[domarm_idx])
-        ndomarm_idx = self.store_index["ndomarm"]
+        ndomarm_idx = self.column_indices_dict["ndomarm"]
         self.ndomarm_info: Optional[GlossInfo] = self.parse_gloss_info(column="ndomarm", cell_content=line_data[ndomarm_idx])
 
 
     def __getitem__(self, key):
-        return self.line_data[self.store_index[key]]
+        return self.line_data[self.column_indices_dict[key]]
 
     def __repr__(self):
-        return f"(MMSLine {self.store_index} for {self.maingloss_info})"
+        return f"(MMSLine {self.column_indices_dict} for {self.maingloss_info})"
 
     def keys(self):
-        return list(self.store_index.keys())
+        return list(self.column_indices_dict.keys())
 
     @staticmethod
     def parse_gloss_info(column: str, cell_content: Optional[str]) -> Optional[GlossInfo]:
@@ -313,27 +315,26 @@ class MMSParser:
         for idx, mms_row_str in enumerate(data[1:]):
             # Convert empty values to None.
             mms_row_str = [x if x != "" else None for x in mms_row_str]
-            mms_row = MMSLine(store_index=index_for_column, line_data=mms_row_str, gloss_idx=idx)
+            mms_row = MMSLine(column_indices=index_for_column, line_data=mms_row_str, gloss_idx=idx)
+
+            if mms_row.maingloss_info is None:
+                raise Exception("maingloss column can not be empty")
 
             if idx == 0:
                 for gloss_info in (mms_row.maingloss_info, mms_row.domarm_info, mms_row.ndomarm_info):
                     if gloss_info is not None and gloss_info.is_hold:
                         raise Exception(f"<HOLD> can not be used in the first row of an MMS.")
 
-            if mms_row.maingloss_info.is_hold:
-                prev_line = rows_list[idx - 1]
+            # Just a repetition of the assertion in the GlossInfo constructor
+            for gloss_info in (mms_row.maingloss_info, mms_row.domarm_info, mms_row.ndomarm_info):
+                if gloss_info is not None:
+                    assert (gloss_info.is_hold and (gloss_info.name is None and gloss_info.datatype is None)) or \
+                           (not gloss_info.is_hold and (gloss_info.name is not None and gloss_info.datatype is not None))
 
-                # TODO --  in future implementations, the name of the prev row will not be needed
-                assert prev_line.maingloss_info.name is not None
 
-                # Override some mmsline properties
-                mms_row.maingloss_info.name = prev_line.maingloss_info.name
-                mms_row.maingloss_info.datatype = prev_line.maingloss_info.datatype
-                mms_row.output_name = f"{idx}_HOLD_" + prev_line.maingloss_info.name
-
-            assert mms_row.maingloss_info.name is not None
             # TODO -- will need to simplify this and bring gloss indexing to simple int.
-            rows_dict[(idx, mms_row.maingloss_info.name)] = mms_row
+            idx_name = "HOLD" if mms_row.maingloss_info else mms_row.maingloss_info.name
+            rows_dict[(idx, idx_name)] = mms_row
             rows_list.append(mms_row)
 
         assert len(rows_dict) == len(rows_list)

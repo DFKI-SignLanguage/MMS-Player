@@ -26,7 +26,7 @@ import bpy
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple, List, Dict
 
-from .mms_parser import MMS, MMSLine
+from .mms_parser import MMS, MMSLine, HOLD_KEYWORD
 from .action_utils import load_gloss_actions
 
 from .logging import logger
@@ -58,8 +58,6 @@ class MMSLineDataInfo:
         #
         # Filled later while scanning or loading the blend files
         self.maingloss_path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
-        # Paths to the Blend scenes of the glosses overriding the arms. Keys are "dom" and "ndom". <HOLD> overrides have no path.
-        self.arm_override_paths: Dict[str, Path] = {}
 
         #
         # Timing conmputations
@@ -109,8 +107,11 @@ class MMSLineDataInfo:
 
         maingloss_blend_file = f"{self.mms_line.maingloss_info.name}.blend"
 
-        self.maingloss_path = dictionary_root / self.mms_line.maingloss_info.datatype / "trimmed" / maingloss_blend_file
-        assert self.maingloss_path is not None
+        if self.mms_line.maingloss_info.is_hold:
+            self.maingloss_path = None
+        else:
+            assert self.mms_line.maingloss_info.datatype is not None
+            self.maingloss_path = dictionary_root / self.mms_line.maingloss_info.datatype / "trimmed" / maingloss_blend_file
 
         if self.mms_line.domarm_info is None or self.mms_line.domarm_info.is_hold:
             self.domarm_path = None
@@ -129,7 +130,7 @@ class MMSLineDataInfo:
         for path in (self.maingloss_path, self.domarm_path, self.ndomarm_path):
             if path is not None:
                 if not path.exists():
-                    raise Exception(f"Expected gloss file '{path}' not present for '{self.mms_line.store_index}'.")
+                    raise Exception(f"Expected gloss file '{path}' not present for '{self.mms_line.column_indices_dict}'.")
 
 
     def load_actions(self) -> None:
@@ -138,15 +139,12 @@ class MMSLineDataInfo:
         This code copies the assets from the library and links it into the current blender context.
         """
 
-        if self.maingloss_path is None:
-            raise Exception(f"No file path stored for '{self.mms_line.output_name}'.")
-
-        assert self.maingloss_path is not None
-        assert self.maingloss_path.name is not None
-
         # Import actions for maingloss
-        self.imported_maingloss_armature_action, self.imported_maingloss_shapekeys_action, self.imported_maingloss_duration_secs = \
-            load_gloss_actions(blend_path=self.maingloss_path, gloss_name=self.mms_line.maingloss_info.name, output_name=self.mms_line.output_name)
+        if self.maingloss_path is not None:
+            assert self.mms_line.maingloss_info is not None
+            assert self.mms_line.maingloss_info.name is not None
+            self.imported_maingloss_armature_action, self.imported_maingloss_shapekeys_action, self.imported_maingloss_duration_secs = \
+                load_gloss_actions(blend_path=self.maingloss_path, gloss_name=self.mms_line.maingloss_info.name, output_name=self.mms_line.output_name)
 
 
         if self.domarm_path is not None:
@@ -189,10 +187,14 @@ class MMSLineDataInfo:
             # If relative timing is used, we use the duration and transition properties of the MMS
             if duration_relative:
 
+                if self.mms_line.maingloss_info.is_hold:
+                    raise Exception(f"MMS row {self.mms_line.idx}: can't specify a relative speed ({duration_val}) when using the gloss {HOLD_KEYWORD}")
+
                 # If forcing the duration to 100%, set the duration relative value to 1.0
                 if force_100pct:
                     duration_val = 1.0
 
+                assert hasattr(self, "imported_maingloss_duration_secs"), "Duration of main gloss not set, yet"
                 duration_secs = self.imported_maingloss_duration_secs * duration_val
 
             else:

@@ -555,11 +555,6 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # Load the actions (including overriding arms, if present) and prepare other info for further processing.
         mmsline_info.load_actions()
 
-        # Here the "imported_" actions have been created
-        # TODO -- will be removed if we avoid copying data from the previous row in case of HOLD.
-        assert mmsline_info.imported_maingloss_armature_action is not None
-        assert mmsline_info.imported_maingloss_shapekeys_action is not None
-
         # Here we perform all the timing computation.
         # It uses teh timing information in the MMSLine, the framrate of the input gloss scene, the desired frame output.
         # After this, all further computations are frame-based. Timings in seconds, relative durations, and framerates can be forgotten.
@@ -605,6 +600,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
 
         #
+        # Manage DOMARM and NDOMARM
         #
         if mmsline.domarm_info is not None:
             if mmsline.domarm_info.is_hold:
@@ -782,6 +778,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     #
     # Checking bones coherence
+    #
     animated_bone_names = {
         fcurve.data_path.split('"')[1]
         for fcurve in target_action.fcurves
@@ -800,6 +797,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # Here is the only place where we manually remove all unused actions
     # By commenting this code block, all actions stays there: useful for debugging
     # For each MMS line, remove the temporary actions
+    logger.info("Removing unused intermetiate actions...")
     for row_idx in mms.row_indices:
         logger.info(f"ROW {row_idx}")
         mmsline = mms[row_idx]
@@ -823,7 +821,6 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
                 bpy.data.actions.remove(stale_action)
 
 
-
     #
     # Finalize the scene and export as MP4, BVH, FBX, or binary blender scene
     logger.info("Post baking (save, render, export) ...")
@@ -842,6 +839,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         gloss_panel=arguments.gloss_panel,
         gloss_timeline=glue.gloss_timeline,
     )
+
+    logger.info("MMS realization done.")
 
 
 #
