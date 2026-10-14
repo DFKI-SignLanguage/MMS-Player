@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-14
+
 - Major revision of the main MMS realization cycle:
   - eliminated action reference relying on their name.
   - moved management of maingloss HOLD into the main top-level cycle.
