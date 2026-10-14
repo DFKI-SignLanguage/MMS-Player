@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+- Major revision of the main MMS realization cycle:
+  - eliminated action reference relying on their name.
+  - moved management of maingloss HOLD into the main top-level cycle.
+  - Realization of HOLD doesn't load the full animation anymore, but more quickly copied the last keyframe of the previous inflected animation.
+- Fix: <HOLD> is now correctly freezing the pose of the inflected animation, not the imported one.
+- It is not NOT possible anymore to specify a relative time duration (e.g., duration 60%) if the main gloss is <HOLD>.
 
 ## [0.5.0] - 2026-10-07
 

@@ -20,10 +20,10 @@
 
 import bpy
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
 from .logging import logger
-from .mms_parser import MMSLineDataInfo
+
 
 # Naming convention prefixes for the actions present in a source gloss blend file.
 BODY_ACTION_PREFIX = "updated_"
@@ -155,75 +155,68 @@ def hold_bone_fcurves(target_action: bpy.types.Action, source_action: bpy.types.
         target_fcurve.update()
 
 
-class ActionOperator:
-    """This utility class has the methods to:
+def create_bone_hold_action(target_action_name: str, source_action: bpy.types.Action, bone_names: List[str], n_frames: int) -> bpy.types.Action:
+    """Similar to the previous method, but in this case creates a new action performing the hold of the source one.
+    The last frame of the source action is used to hold the position of the bone specified."""
 
-    1. Load the gloss animation(s) needed to realize a given MMSLine.
-    2. Resample an action to a given target frame number
+    hold_action = bpy.data.actions.new(name=target_action_name)
+    hold_bone_fcurves(target_action=hold_action, source_action=source_action, bone_names=bone_names, n_frames=n_frames)
+
+    return hold_action
+
+
+def create_hold_action(target_action_name: str, source_action: bpy.types.Action, n_frames: int) -> bpy.types.Action:
+    """Creates a new action holding, for all the shape keys animated by the source action, the value of their last keyframe.
+    The new fcurves are constant and keyed at frames 1 and n_frames."""
+
+    hold_action = bpy.data.actions.new(name=target_action_name)
+
+    for source_fcurve in source_action.fcurves:
+        if len(source_fcurve.keyframe_points) == 0:
+            continue
+        last_value = source_fcurve.keyframe_points[-1].co[1]
+        target_fcurve = hold_action.fcurves.new(data_path=source_fcurve.data_path, index=source_fcurve.array_index)
+        target_fcurve.keyframe_points.insert(1, last_value, options={"FAST"})
+        target_fcurve.keyframe_points.insert(n_frames, last_value, options={"FAST"})
+        target_fcurve.update()
+
+    return hold_action
+
+
+def resample_action(src_action: bpy.types.Action, target_action_name: str, target_framecount: int) -> bpy.types.Action:
+    """Resample the given source action into a new action with the given target name.
+    Operates purely on the action's f-curves, so it works regardless of what the action animates
+    (armature bones, shape keys, ...) and requires no armature or bone-name knowledge.
+
+    :param timing:  If use_rel_time is False, the timing is a tuple containing the MMS (framestart, frameend)
+        already converted in frame position.
+        If use_rel_time if True, the timing is a tuple (duration, pct),
+        where the duration can be expressed as absolute vale in frames, or as a percentage of the original duration.
+    :param use_rel_time: whether to use relative timing, or not.
+    :param src_action_name: The name of the existing action
+    :param target_action_name: The name of the action to be created
+    :return: the newly created, resampled action.
     """
 
-    def __init__(self, mms_line_info: MMSLineDataInfo) -> None:
+    sampled_action = bpy.data.actions.new(name=target_action_name)
 
-        self.mms_line_info = mms_line_info
+    # Mirror every fcurve from the source into the new action
+    for src_fcurve in src_action.fcurves:
+        sampled_action.fcurves.new(data_path=src_fcurve.data_path, index=src_fcurve.array_index)
 
-        self.imported_main_armature_action: Optional[bpy.types.Action] = None
-        self.imported_main_shapekeys_action: Optional[bpy.types.Action] = None
+    # Build sample points spanning the source frame range
+    frame_start = int(src_action.frame_range[0])
+    frame_end = int(src_action.frame_range[1])
+    target_frame_count = int(target_framecount)
+    ratio = (frame_end - frame_start) / (target_frame_count - 1)
+    samples = [frame_start + x * ratio for x in range(target_frame_count)]
 
-        self.imported_main_gloss_duration_secs: float
-
-    def load_actions(self) -> None:
-        """Load the gloss's actions into the scene.
-
-        This code copies the assets from the library and links it into the current blender context.
-        """
-
-        blend_path = self.mms_line_info.maingloss_path
-
-        if blend_path is None:
-            raise Exception(f"No file path stored for '{self.mms_line_info.mms_line.output_name}'.")
-
-        mms_line = self.mms_line_info.mms_line
-        self.imported_main_armature_action, self.imported_main_shapekeys_action, self.imported_main_gloss_duration_secs = \
-            load_gloss_actions(blend_path=blend_path, gloss_name=mms_line.name, output_name=mms_line.output_name)
-
-
-    @staticmethod
-    def resample_action(src_action_name: str, target_action_name: str, target_framecount: int) -> bpy.types.Action:
-        """Resample the given source action into a new action with the given target name.
-        Operates purely on the action's f-curves, so it works regardless of what the action animates
-        (armature bones, shape keys, ...) and requires no armature or bone-name knowledge.
-
-        :param timing:  If use_rel_time is False, the timing is a tuple containing the MMS (framestart, frameend)
-         already converted in frame position.
-          If use_rel_time if True, the timing is a tuple (duration, pct),
-           where the duration can be expressed as absolute vale in frames, or as a percentage of the original duration.
-        :param use_rel_time: whether to use relative timing, or not.
-        :param src_action_name: The name of the existing action
-        :param target_action_name: The name of the action to be created
-        :return: the newly created, resampled action.
-        """
-
-        src_action = bpy.data.actions[src_action_name]
-
-        sampled_action = bpy.data.actions.new(name=target_action_name)
-
-        # Mirror every fcurve from the source into the new action
+    for frame_number, sample in enumerate(samples):
         for src_fcurve in src_action.fcurves:
-            sampled_action.fcurves.new(data_path=src_fcurve.data_path, index=src_fcurve.array_index)
+            sampled_value = src_fcurve.evaluate(sample)
+            target_fcurve = sampled_action.fcurves.find(src_fcurve.data_path, index=src_fcurve.array_index)
+            target_fcurve.keyframe_points.insert(frame_number + 1, sampled_value)
 
-        # Build sample points spanning the source frame range
-        frame_start = int(src_action.frame_range[0])
-        frame_end = int(src_action.frame_range[1])
-        target_frame_count = int(target_framecount)
-        ratio = (frame_end - frame_start) / (target_frame_count - 1)
-        samples = [frame_start + x * ratio for x in range(target_frame_count)]
+    assert target_action_name in bpy.data.actions
 
-        for frame_number, sample in enumerate(samples):
-            for src_fcurve in src_action.fcurves:
-                sampled_value = src_fcurve.evaluate(sample)
-                target_fcurve = sampled_action.fcurves.find(src_fcurve.data_path, index=src_fcurve.array_index)
-                target_fcurve.keyframe_points.insert(frame_number + 1, sampled_value)
-
-        assert target_action_name in bpy.data.actions
-
-        return sampled_action
+    return sampled_action

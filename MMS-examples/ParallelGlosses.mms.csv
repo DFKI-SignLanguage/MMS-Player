@@ -1,0 +1,11 @@
+maingloss,framestart,frameend,duration,transition,domarm,ndomarm
+ZUG,0,0,100%,0.5,,
+<HOLD>,0,0,0.5,1,INDEX,
+ZUG,0,0,100%,0.5,,
+INDEX,0,0,100%,1,<HOLD>,
+ZUG,0,0,100%,0.5,,
+INDEX,0,0,0.5,1,,<HOLD>
+KOELN,0,0,50%,2,,
+<HOLD>,0,0,1,1,,ZUG
+KOMMEN(-von-hinten),0,0,100%,1,,<HOLD>
+<HOLD>,0,0,1.0,1,,

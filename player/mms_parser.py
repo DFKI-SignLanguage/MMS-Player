@@ -18,35 +18,41 @@
 # Parse the mms and trim the motion capture data from the library.
 #
 
-import argparse
 import csv
 import mathutils
-import math
-import os
-import re
 
 from collections import OrderedDict
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List
 
 
+DEFAULT_SIGN_TYPE = "signs"
+
 HOLD_KEYWORD = "<HOLD>"
 
-# The names of the MMS columns that can override the animation of the dominant (right) and non-dominant (left) arm.
-ARM_OVERRIDE_COLUMNS = {"dom": "domarm", "ndom": "ndomarm"}
 
-
-class ArmOverride:
+class GlossInfo:
     """The content of a (n)domarm cell: either another gloss to play on the arm bones, or a <HOLD>."""
 
-    def __init__(self, name: Optional[str] = None, datatype: Optional[str] = None, is_hold: bool = False):
-        assert is_hold or name is not None
+    def __init__(self, column: str, name: Optional[str] = None, datatype: Optional[str] = None, is_hold: bool = False):
+        assert (is_hold and name is None and datatype is None) \
+          or (not is_hold and name is not None and datatype is not None)
+        self.column = column
         self.name = name  # The gloss to play on the arm. None if is_hold.
         self.datatype = datatype  # The class/type of the gloss. None if is_hold.
         self.is_hold = is_hold  # If True, the arm freezes at the last pose of the previous row.
 
     def __repr__(self):
-        return "ArmOverride(<HOLD>)" if self.is_hold else f"ArmOverride({self.datatype}:{self.name})"
+        return "GlossInfo(<HOLD>)" if self.is_hold else f"GlossInfo({self.datatype}:{self.name})"
+
+    def to_compact_string(self) -> str:
+        if self.is_hold:
+            out = "<HOLD>"
+        else:
+            assert self.name is not None
+            out = self.name
+
+        return self.column + ":" + out
 
 
 class MMSLine:
@@ -57,50 +63,67 @@ class MMSLine:
     for the inflection of the corresponding sign.
     """
 
-    def __init__(self, store_index: Dict[str, int], line_data: List[Optional[str]], gloss_idx: int):
+    def __init__(self, column_indices: Dict[str, int], line_data: List[Optional[str]], gloss_idx: int):
 
-        self.store_index = store_index  # Maps the column name to its index within the MMS row.
+        self.column_indices_dict = column_indices  # Maps the column name to its index within the MMS row.
         self.line_data = line_data  # The full row of the MMS in text format.
-        self.name, self.datatype = self.find_datatype(line_data[0])  # The gloss itself and its class/type (defauts to 'signs').
-        self.is_hold: bool = False  # Set to true if the gloss in this lione is <HODL>. The rest of the parameters will be set to the values of the previous gloss, but during realization this flag will be used to handle the animation differently.
-        self.output_name = f"{gloss_idx}_{self.name}"  # We overwrite the name.
+        self.idx = gloss_idx  # The sequential row number in the MMS, from 0.
 
-        # Optional overrides of the arms animation, from the domarm/ndomarm columns. Keys are "dom" and "ndom".
-        self.arm_overrides: Dict[str, ArmOverride] = {}
-        for side, column in ARM_OVERRIDE_COLUMNS.items():
-            if column not in store_index or store_index[column] >= len(line_data):
-                continue
-            cell = self[column]
-            if cell is None or cell.strip() == "":
-                continue
-            cell = cell.strip()
-            if cell == HOLD_KEYWORD:
-                self.arm_overrides[side] = ArmOverride(is_hold=True)
-            else:
-                arm_name, arm_datatype = self.find_datatype(cell)
-                self.arm_overrides[side] = ArmOverride(name=arm_name, datatype=arm_datatype)
+        # Parse the main gloss
+        maingloss_idx = self.column_indices_dict["maingloss"]
+        
+        main_gloss_info = self.parse_gloss_info(column="maingloss", cell_content=line_data[maingloss_idx])
+        if main_gloss_info is None:
+            raise Exception(f"Row {self.idx}: maingloss can not be empty.")
+
+        self.maingloss_info: GlossInfo = main_gloss_info
+
+        self.output_name = f"{gloss_idx}_" + self.maingloss_info.to_compact_string()  # A string composing the row counter with the gloss name
+
+        # Parse the arm overrides
+        domarm_idx = self.column_indices_dict["domarm"]
+        self.domarm_info: Optional[GlossInfo] = self.parse_gloss_info(column="domarm", cell_content=line_data[domarm_idx])
+        ndomarm_idx = self.column_indices_dict["ndomarm"]
+        self.ndomarm_info: Optional[GlossInfo] = self.parse_gloss_info(column="ndomarm", cell_content=line_data[ndomarm_idx])
+
 
     def __getitem__(self, key):
-        return self.line_data[self.store_index[key]]
+        return self.line_data[self.column_indices_dict[key]]
 
     def __repr__(self):
-        return f"(MMSLine for {self.name} {self.datatype})"
+        return f"(MMSLine {self.column_indices_dict} for {self.maingloss_info})"
 
     def keys(self):
-        return list(self.store_index.keys())
+        return list(self.column_indices_dict.keys())
 
     @staticmethod
-    def find_datatype(name) -> Tuple[str, str]:
-        """Handle the syntax <class>:<gloss>.
-         Returns the class and the gloss in two different strings.
-         If there is no ':', returns the default 'signs' class.
-         E.g.: 'gest:TJA' --> ('TJS', 'gest'); 'ABLAUF' --> ('ABLAUF', 'signs')
-        """
+    def parse_gloss_info(column: str, cell_content: Optional[str]) -> Optional[GlossInfo]:
+        """Builds a GlossInfo instance from parsing a not-None string taken from a gloss column.
+        If the input is None, outputs None as well. Otherwise parses the gloss info."""
 
-        if ":" not in name:
-            return name, "signs"
-        split = name.split(":")
-        return split[1], split[0]
+        # None input makes None Output
+        if cell_content is None:
+            return None
+
+        # Empty strings are like None
+        cell_content = cell_content.strip()
+        if cell_content == "":
+            return None
+
+        # If it is a <HOLD>, return immediately
+        if cell_content == HOLD_KEYWORD:
+            return GlossInfo(column=column, is_hold=True)
+
+        # If there is no column, use the default gloss type
+        if ":" not in cell_content:
+            return GlossInfo(column=column, name=cell_content, datatype=DEFAULT_SIGN_TYPE)
+
+        # Default case: the type is specified
+        split = cell_content.split(":")
+        if len(split) == 2:
+            return GlossInfo(column=column, name=split[1], datatype=split[0])
+
+        raise Exception(f"Format error for gloss entry '{cell_content}'")
 
     def handle_none(self, key) -> Optional[Tuple[float, float, float]]:
         """Retrieves the 3 values of the key + x/y/z.
@@ -225,123 +248,6 @@ class MMSLine:
             return float(duration), False
 
 
-class MMSLineDataInfo:
-    """Auxiliary information to an MMSLine, holding information that can be retrieved only at run-time.
-    """
-
-    def __init__(self, mms_line: MMSLine):
-
-        self.mms_line = mms_line
-
-        # Filled later while scanning or loading the blend files
-        self.maingloss_path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
-        # Paths to the Blend scenes of the glosses overriding the arms. Keys are "dom" and "ndom". <HOLD> overrides have no path.
-        self.arm_override_paths: Dict[str, Path] = {}
-
-        self.maingloss_original_frame_range: Optional[Tuple[float, float]] = None
-        # TODO --  we will need to store also the framerate of the source Blenderr file, to proper resamplings among different FPS.
-        # self.maingloss_original_FPS: float
-
-        # The resampled range of this gloss on the final timeline
-        # self.resampled_frame_range: Optional[Tuple[int, int]] = None
-
-        # The new duration of this gloss, in frames
-        self.resampled_duration_frames: int
-        # Transition in frames from the last frame of the previous gloss
-        #self.transition_frames: int
-
-        # The target framerange on the final timeline
-        self.target_frame_range: Optional[Tuple[int, int]] = None
-
-    def compose_file_paths(self, dictionary_root: Path) -> None:
-        """
-        Compose the gloss path and verify that the path exists.
-        If the required file doesn't exist, an Exception is thrown.
-        """
-
-        maingloss_blend_file = f"{self.mms_line.name}.blend"
-
-        self.maingloss_path = dictionary_root / self.mms_line.datatype / "trimmed" / maingloss_blend_file
-        assert self.maingloss_path is not None
-
-        if not self.maingloss_path.exists():
-            raise Exception(f"Expected gloss file '{self.maingloss_path}' not present for '{self.mms_line.name}'.")
-
-        for side, arm_override in self.mms_line.arm_overrides.items():
-            if arm_override.is_hold:
-                continue
-            assert arm_override.name is not None and arm_override.datatype is not None
-            arm_path = dictionary_root / arm_override.datatype / "trimmed" / f"{arm_override.name}.blend"
-            if not arm_path.exists():
-                raise Exception(f"Expected gloss file '{arm_path}' not present for {ARM_OVERRIDE_COLUMNS[side]} '{arm_override.name}'.")
-            self.arm_override_paths[side] = arm_path
-
-    def compute_target_frame_range(self, use_rel_time: bool, src_action_duration_secs: float, last_gloss_end_frame: int, target_fps: float) -> None:
-
-        if use_rel_time:
-            # If relative timing is used, we use the duration and transition properties of the MMS
-            duration_val, duration_relative = self.mms_line.duration()
-            if duration_relative:
-                duration_secs = src_action_duration_secs * duration_val
-                # frame_start = int(src_action.frame_range[0])
-                # frame_end = int(src_action.frame_range[1])
-                # target_frame_count = math.ceil(duration_or_prop * (frame_end - frame_start) + 1)
-            else:
-                duration_secs = duration_val
-
-            transition_secs = self.mms_line.transition()
-
-            # Consider total timing, then compute the transition in frames as approximated frame count and derive then the duration in frames.
-            tot_time_secs = duration_secs + transition_secs
-
-            tot_time_frames = math.ceil(tot_time_secs * target_fps)
-
-            # Give priority /maximize the framecount for the 
-            self.resampled_duration_frames = math.ceil(duration_secs * target_fps)
-
-            transition_frames = tot_time_frames - self.resampled_duration_frames
-
-            self.target_frame_range = ( \
-                last_gloss_end_frame + transition_frames, \
-                last_gloss_end_frame + transition_frames + self.resampled_duration_frames - 1 \
-            )
-
-        else:
-            # Here the absolute timing is used. Get it from the two start/end columns of the MMS
-            start_secs, end_secs = self.mms_line.timing()
-
-            # Consider the target scene FPS to get the approximation in frames
-            #
-            # Approximate to the last integer frame. Example for 60 fps (frame duration = 0.01666_)
-            # math.floor(0.0 * 60.0) --> 0
-            # math.floor(0.0166 * 60.0) --> 0
-            # math.floor(0.0167 * 60.0) --> 1
-            # ...
-            # math.floor(0.9999 * 60.0) --> 59
-            # math.floor(1.0 * 60.0) --> 60
-            #
-            # We add +1 because we start filling our timeline from frame 1
-            self.target_frame_range = ( \
-                math.floor(start_secs * target_fps) + 1, \
-                math.floor(end_secs * target_fps) + 1 \
-            )
-
-            # The duration is a direct consequence
-            self.resampled_duration_frames = self.target_frame_range[1] - self.target_frame_range[0] + 1
-
-        assert self.target_frame_range is not None
-        # The duration in frames is related to the frame range
-        assert self.resampled_duration_frames == self.target_frame_range[1] - self.target_frame_range[0] + 1
-        assert self.target_frame_range[1] >= self.target_frame_range[0]
-
-        if self.resampled_duration_frames == 0:
-            raise Exception("A gloss execution must last at least 1 frame.")
-
-        if self.target_frame_range[0] < last_gloss_end_frame:
-            raise Exception(f"Negative transition between glosses. New gloss start frame ({self.target_frame_range[0]}) is less than the last gloss end frame ({last_gloss_end_frame}).")
-
-
-
 class MMS:
     """MMS table representation.
     
@@ -404,34 +310,31 @@ class MMSParser:
         }
 
         # Iterates on the MMS data
-        rows_dict = {}
-        rows_list = []
+        rows_dict: Dict[Tuple[int, str], MMSLine] = {}
+        rows_list: List[MMSLine] = []
         for idx, mms_row_str in enumerate(data[1:]):
             # Convert empty values to None.
             mms_row_str = [x if x != "" else None for x in mms_row_str]
-            mms_row = MMSLine(index_for_column, mms_row_str, idx)
+            mms_row = MMSLine(column_indices=index_for_column, line_data=mms_row_str, gloss_idx=idx)
 
-            matches = re.findall(r'<(.*?)>', mms_row.name)
+            if mms_row.maingloss_info is None:
+                raise Exception("maingloss column can not be empty")
 
             if idx == 0:
-                for side, arm_override in mms_row.arm_overrides.items():
-                    if arm_override.is_hold:
-                        raise Exception(f"<HOLD> can not be used in the {ARM_OVERRIDE_COLUMNS[side]} column of the first row of an MMS.")
+                for gloss_info in (mms_row.maingloss_info, mms_row.domarm_info, mms_row.ndomarm_info):
+                    if gloss_info is not None and gloss_info.is_hold:
+                        raise Exception(f"<HOLD> can not be used in the first row of an MMS.")
 
-            if len(matches) > 0 and matches[0] == "HOLD":
-                print(idx, "FOUND HOLD")
-                # We can not handle HOLD is the first sign in the MMS.
-                if idx == 0:
-                    raise Exception("<HOLD> can not be used in the first row of an MMS.")
+            # Just a repetition of the assertion in the GlossInfo constructor
+            for gloss_info in (mms_row.maingloss_info, mms_row.domarm_info, mms_row.ndomarm_info):
+                if gloss_info is not None:
+                    assert (gloss_info.is_hold and (gloss_info.name is None and gloss_info.datatype is None)) or \
+                           (not gloss_info.is_hold and (gloss_info.name is not None and gloss_info.datatype is not None))
 
-                prev_line = rows_list[idx - 1]
-                # Override some mmsline properties
-                mms_row.name = prev_line.name
-                mms_row.datatype = prev_line.datatype
-                mms_row.output_name = f"{idx}_HOLD_" + prev_line.name
-                mms_row.is_hold = True
 
-            rows_dict[(idx, mms_row.name)] = mms_row
+            # TODO -- will need to simplify this and bring gloss indexing to simple int.
+            idx_name = "HOLD" if mms_row.maingloss_info else mms_row.maingloss_info.name
+            rows_dict[(idx, idx_name)] = mms_row
             rows_list.append(mms_row)
 
         assert len(rows_dict) == len(rows_list)
@@ -444,32 +347,32 @@ class MMSParser:
 
 
 # TODO -- Convert this into a test unit
-if __name__ == "__main__":
-    # Simple test to verify whether the parser is working or not
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--mms-file", type=str)
-    args = parser.parse_args()
-    args.mms_file = os.environ["AVASAG_CORPUS_DIR"] + "/generated/mms/0009.mms"
-    args.generated_root = os.environ["AVASAG_CORPUS_DIR"] + "/generated"
-    parser = MMSParser(args.mms_file)
-    parsed_mms = parser.parse()
-    for mms_gloss in parsed_mms.row_indices:
-        print("========================================")
-        print(f"Using {parsed_mms[mms_gloss].output_name}")
-        print("Timing: ", parsed_mms[mms_gloss].timing())
-        print("Translation [ Dom]: \n", parsed_mms[mms_gloss].translation("dom"))
-        print("Translation [nDom]: \n", parsed_mms[mms_gloss].translation("ndom"))
+# if __name__ == "__main__":
+#     # Simple test to verify whether the parser is working or not
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--mms-file", type=str)
+#     args = parser.parse_args()
+#     args.mms_file = os.environ["AVASAG_CORPUS_DIR"] + "/generated/mms/0009.mms"
+#     args.generated_root = os.environ["AVASAG_CORPUS_DIR"] + "/generated"
+#     parser = MMSParser(args.mms_file)
+#     parsed_mms = parser.parse()
+#     for mms_gloss in parsed_mms.row_indices:
+#         print("========================================")
+#         print(f"Using {parsed_mms[mms_gloss].output_name}")
+#         print("Timing: ", parsed_mms[mms_gloss].timing())
+#         print("Translation [ Dom]: \n", parsed_mms[mms_gloss].translation("dom"))
+#         print("Translation [nDom]: \n", parsed_mms[mms_gloss].translation("ndom"))
 
-        print("Rotation [ Dom]: \n", parsed_mms[mms_gloss].traj_rotation("dom"))
-        print("Rotation [nDom]: \n", parsed_mms[mms_gloss].traj_rotation("ndom"))
+#         print("Rotation [ Dom]: \n", parsed_mms[mms_gloss].traj_rotation("dom"))
+#         print("Rotation [nDom]: \n", parsed_mms[mms_gloss].traj_rotation("ndom"))
 
-        print("Scale [ Dom]: \n", parsed_mms[mms_gloss].scale("dom"))
-        print("Scale [nDom]: \n", parsed_mms[mms_gloss].scale("ndom"))
+#         print("Scale [ Dom]: \n", parsed_mms[mms_gloss].scale("dom"))
+#         print("Scale [nDom]: \n", parsed_mms[mms_gloss].scale("ndom"))
 
-        print("Shoulder Shift [ Dom]: \n", parsed_mms[mms_gloss].shoulder_shift("dom"))
-        print("Shoulder Shift [nDom]: \n", parsed_mms[mms_gloss].shoulder_shift("ndom"))
+#         print("Shoulder Shift [ Dom]: \n", parsed_mms[mms_gloss].shoulder_shift("dom"))
+#         print("Shoulder Shift [nDom]: \n", parsed_mms[mms_gloss].shoulder_shift("ndom"))
 
-        print("Torso [Position]: \n", parsed_mms[mms_gloss].torso_shift())
-        print("Torso [Rotation]: \n", parsed_mms[mms_gloss].torso_rot())
+#         print("Torso [Position]: \n", parsed_mms[mms_gloss].torso_shift())
+#         print("Torso [Rotation]: \n", parsed_mms[mms_gloss].torso_rot())
 
-        print("Head [Rotation]: \n", parsed_mms[mms_gloss].head_rot())
+#         print("Head [Rotation]: \n", parsed_mms[mms_gloss].head_rot())

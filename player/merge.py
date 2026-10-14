@@ -18,11 +18,17 @@
 # This module contains the functions to merge the inflected signs into a single animation.
 #
 
+import math
+from pathlib import Path
+
 import bpy
 
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple, List, Dict
-from .mms_parser import MMS, MMSLineDataInfo
+
+from .mms_parser import MMS, MMSLine, HOLD_KEYWORD
+from .action_utils import load_gloss_actions
+
 from .logging import logger
 
 
@@ -37,6 +43,213 @@ class GlossSegment:
     name: str  # The gloss text realized for this row.
     start_frame: float
     end_frame: float
+
+
+class MMSLineDataInfo:
+    """Auxiliary information to an MMSLine, holding information created and retrieved only at run-time.
+    """
+
+    def __init__(self, mms_line: MMSLine):
+
+        self.mms_line = mms_line
+
+        #
+        # File paths
+        #
+        # Filled later while scanning or loading the blend files
+        self.maingloss_path: Optional[Path] = None  # Path to the Blend scene containing the gloss animation data for this MMS line.
+
+        #
+        # Timing conmputations
+        #
+        # The new duration of this maingloss, in frames
+        self.resampled_duration_frames: int
+        # The target framerange on the final timeline
+        self.target_frame_range: Optional[Tuple[int, int]] = None
+
+        #
+        # Imported actions info
+        #
+        # Armature action for main gloss
+        self.imported_maingloss_armature_action: Optional[bpy.types.Action] = None
+        # ShapeKeys action for main gloss
+        self.imported_maingloss_shapekeys_action: Optional[bpy.types.Action] = None
+        # Store also the framerate of the source Blenderr file, to proper resamplings among different FPS.
+        self.imported_maingloss_duration_secs: float
+
+        #
+        # Resampled actions
+        self.resampled_maingloss_action: Optional[bpy.types.Action] = None
+        self.resampled_maingloss_shapekeys_action: Optional[bpy.types.Action] = None
+
+        #
+        # Imported and resampled for arm overrides
+        self.domarm_path: Optional[Path] = None
+        self.imported_domarm_action: Optional[bpy.types.Action] = None
+        self.imported_domarm_shapekeys_action: Optional[bpy.types.Action] = None
+        self.resampled_domarm_action: Optional[bpy.types.Action] = None
+
+        self.ndomarm_path: Optional[Path] = None
+        self.imported_ndomarm_action: Optional[bpy.types.Action] = None
+        self.imported_ndomarm_shapekeys_action: Optional[bpy.types.Action] = None
+        self.resampled_ndomarm_action: Optional[bpy.types.Action] = None
+
+        #
+        # Inflected 
+        self.inflected_action: Optional[bpy.types.Action] = None
+
+
+    def compose_file_paths(self, dictionary_root: Path) -> None:
+        """
+        Compose the gloss path and verify that the path exists.
+        If the required file doesn't exist, an Exception is thrown.
+        """
+
+        maingloss_blend_file = f"{self.mms_line.maingloss_info.name}.blend"
+
+        if self.mms_line.maingloss_info.is_hold:
+            self.maingloss_path = None
+        else:
+            assert self.mms_line.maingloss_info.datatype is not None
+            self.maingloss_path = dictionary_root / self.mms_line.maingloss_info.datatype / "trimmed" / maingloss_blend_file
+
+        if self.mms_line.domarm_info is None or self.mms_line.domarm_info.is_hold:
+            self.domarm_path = None
+        else:
+            assert self.mms_line.domarm_info.datatype is not None
+            self.domarm_path = dictionary_root / self.mms_line.domarm_info.datatype / "trimmed" / f"{self.mms_line.domarm_info.name}.blend"
+
+        if self.mms_line.ndomarm_info is None or self.mms_line.ndomarm_info.is_hold:
+            self.ndomarm_path = None
+        else:
+            assert self.mms_line.ndomarm_info.datatype is not None
+            self.ndomarm_path = dictionary_root / self.mms_line.ndomarm_info.datatype / "trimmed" / f"{self.mms_line.ndomarm_info.name}.blend"
+
+        #
+        # Test for FILES presence
+        for path in (self.maingloss_path, self.domarm_path, self.ndomarm_path):
+            if path is not None:
+                if not path.exists():
+                    raise Exception(f"Expected gloss file '{path}' not present for '{self.mms_line.column_indices_dict}'.")
+
+
+    def load_actions(self) -> None:
+        """Load the gloss's actions into the scene.
+
+        This code copies the assets from the library and links it into the current blender context.
+        """
+
+        # Import actions for maingloss
+        if self.maingloss_path is not None:
+            assert self.mms_line.maingloss_info is not None
+            assert self.mms_line.maingloss_info.name is not None
+            self.imported_maingloss_armature_action, self.imported_maingloss_shapekeys_action, self.imported_maingloss_duration_secs = \
+                load_gloss_actions(blend_path=self.maingloss_path, gloss_name=self.mms_line.maingloss_info.name, output_name=self.mms_line.output_name)
+
+
+        if self.domarm_path is not None:
+            assert self.mms_line.domarm_info is not None
+            assert self.mms_line.domarm_info.name is not None
+            self.imported_domarm_action, self.imported_domarm_shapekeys_action, _ = load_gloss_actions(
+                    blend_path=self.domarm_path, gloss_name=self.mms_line.domarm_info.name, output_name=self.mms_line.output_name + "_domarm")
+
+        if self.ndomarm_path is not None:
+            assert self.mms_line.ndomarm_info is not None
+            assert self.mms_line.ndomarm_info.name is not None
+            self.imported_ndomarm_action, self.imported_ndomarm_shapekeys_action, _ = load_gloss_actions(
+                    blend_path=self.ndomarm_path, gloss_name=self.mms_line.ndomarm_info.name, output_name=self.mms_line.output_name + "_ndomarm")
+
+
+    def compute_target_frame_range(self, use_rel_time: bool, last_gloss_end_frame: int, target_fps: float, force_100pct: bool) -> None:
+        """Compute the frame range that this gloss will occupy on the target timeline.
+
+        Sets self.target_frame_range (inclusive start/end frames) and self.resampled_duration_frames.
+
+        With relative timing, the gloss starts after the transition from the previous gloss.
+        The duration comes from the MMS (relative to the original gloss duration, or absolute in seconds),
+        and the transition comes from the MMS transition column. The total time (duration + transition)
+        is rounded up to whole frames. The duration also gets rounded up first, and the transition
+        gets whatever frames are left.
+        With absolute timing, the start/end times from the MMS are converted directly to frames (1-based).
+
+        With relative timing, load_actions() must be called first, because the original gloss duration is needed.
+
+        :param use_rel_time: If True, use the MMS duration/transition columns. Otherwise use the absolute start/end columns.
+        :param last_gloss_end_frame: The end frame of the previous gloss on the timeline. Relative timing starts from here.
+        :param target_fps: The frame rate of the target scene, used to convert seconds to frames.
+        :param force_100pct: If True (and using relative timing), ignore the relative duration and keep the original gloss duration.
+        :raises Exception: If the resulting gloss lasts less than 1 frame, or starts before last_gloss_end_frame.
+        """
+
+        if use_rel_time:
+            duration_val, duration_relative = self.mms_line.duration()
+
+            # If relative timing is used, we use the duration and transition properties of the MMS
+            if duration_relative:
+
+                if self.mms_line.maingloss_info.is_hold:
+                    raise Exception(f"MMS row {self.mms_line.idx}: can't specify a relative speed ({duration_val}) when using the gloss {HOLD_KEYWORD}")
+
+                # If forcing the duration to 100%, set the duration relative value to 1.0
+                if force_100pct:
+                    duration_val = 1.0
+
+                assert hasattr(self, "imported_maingloss_duration_secs"), "Duration of main gloss not set, yet"
+                duration_secs = self.imported_maingloss_duration_secs * duration_val
+
+            else:
+                duration_secs = duration_val
+
+            transition_secs = self.mms_line.transition()
+
+            # Consider total timing, then compute the transition in frames as approximated frame count and derive then the duration in frames.
+            tot_time_secs = duration_secs + transition_secs
+
+            tot_time_frames = math.ceil(tot_time_secs * target_fps)
+
+            # Give priority / maximize the framecount for the gloss execution
+            self.resampled_duration_frames = math.ceil(duration_secs * target_fps)
+            # Leave the rest to the transition
+            transition_frames = tot_time_frames - self.resampled_duration_frames
+
+            self.target_frame_range = ( \
+                last_gloss_end_frame + transition_frames, \
+                last_gloss_end_frame + transition_frames + self.resampled_duration_frames - 1 \
+            )
+
+        else:
+            # Here the absolute timing is used. Get it from the two start/end columns of the MMS
+            start_secs, end_secs = self.mms_line.timing()
+
+            # Consider the target scene FPS to get the approximation in frames
+            #
+            # Approximate to the last integer frame. Example for 60 fps (frame duration = 0.01666_)
+            # math.floor(0.0 * 60.0) --> 0
+            # math.floor(0.0166 * 60.0) --> 0
+            # math.floor(0.0167 * 60.0) --> 1
+            # ...
+            # math.floor(0.9999 * 60.0) --> 59
+            # math.floor(1.0 * 60.0) --> 60
+            #
+            # We add +1 because we start filling our timeline from frame 1
+            self.target_frame_range = ( \
+                math.floor(start_secs * target_fps) + 1, \
+                math.floor(end_secs * target_fps) + 1 \
+            )
+
+            # The duration is a direct consequence
+            self.resampled_duration_frames = self.target_frame_range[1] - self.target_frame_range[0] + 1
+
+        assert self.target_frame_range is not None
+        # The duration in frames is related to the frame range
+        assert self.resampled_duration_frames == self.target_frame_range[1] - self.target_frame_range[0] + 1
+        assert self.target_frame_range[1] >= self.target_frame_range[0]
+
+        if self.resampled_duration_frames == 0:
+            raise Exception("A gloss execution must last at least 1 frame.")
+
+        if self.target_frame_range[0] < last_gloss_end_frame:
+            raise Exception(f"Negative transition between glosses. New gloss start frame ({self.target_frame_range[0]}) is less than the last gloss end frame ({last_gloss_end_frame}).")
 
 
 class Glue:
@@ -113,47 +326,10 @@ class Glue:
             assert sk.animation_data is not None
             sk.animation_data.action = self.target_shapekeys_action
 
-
-    def perform_hold(self,
-                     target_action: bpy.types.Action,
-                     source_action: bpy.types.Action,
-                     start: float,
-                     end: float,
-                     data_path_filter: Optional[Callable[[str], bool]] = None,
-                     ) -> int:
-        """:param data_path_filter: If given, only the source fcurves whose data_path satisfies the filter are processed."""
-
-        logger.info(f"Performing HOLD Operation in range {start}-{end}. Last frame from {source_action.name}.")
-
-        for source_fcurve in source_action.fcurves:
-            if data_path_filter is not None and not data_path_filter(source_fcurve.data_path):
-                continue
-            target_curve = target_action.fcurves.find(
-                    source_fcurve.data_path, index=source_fcurve.array_index
-                    )
-
-            # Get the last keyframe points
-            last_keyframe_idx = len(source_fcurve.keyframe_points) - 1
-            last_keyframe_point = source_fcurve.keyframe_points[last_keyframe_idx]
-
-            # Insert the two keyframes at the start and end positions
-            target_curve.keyframe_points.insert(
-                    frame=start,
-                    value=last_keyframe_point.co[1],
-                    options={"FAST"}
-                    )
-            target_curve.keyframe_points.insert(
-                    frame=end,
-                    value=last_keyframe_point.co[1],
-                    options={"FAST"}
-                    )
-
-        return end
-
     def append_action(self,
                           target_action: bpy.types.Action,
                           source_action: bpy.types.Action,
-                          start: float,
+                          start: int,
                           data_path_filter: Optional[Callable[[str], bool]] = None) -> int:
         """Appends the data of a source action into a target action, starting from the given keyframe.
         Returns the keyframe number of the last added frame (acccording to the size of the source action).
@@ -214,59 +390,43 @@ class Glue:
             # For a <HOLD> row, `.name` has been overwritten (in ensure_mocap_data_files()) to the
             # held gloss's name, so that the mocap file path resolves correctly. Report "<HOLD>"
             # instead, so the panel reflects what's actually being realized for this row.
-            gloss_name = "<HOLD>" if mms_row.is_hold else mms_row.name
-            for side, arm_override in mms_row.arm_overrides.items():
-                arm_gloss_name = "<HOLD>" if arm_override.is_hold else arm_override.name
-                gloss_name += f" +{side}:{arm_gloss_name}"
+            panel_txt = mms_row.maingloss_info.to_compact_string()
+            if mms_row.domarm_info is not None:
+                assert mms_row.domarm_info is not None
+                panel_txt += " +" + mms_row.domarm_info.to_compact_string()
+            if mms_row.ndomarm_info is not None:
+                panel_txt += " +" + mms_row.ndomarm_info.to_compact_string()
+
+            # for side, arm_override in mms_row.arm_overrides.items():
+            #     arm_gloss_name = "<HOLD>" if arm_override.is_hold else arm_override.name
+            #     gloss_name += f" +{side}:{arm_gloss_name}"
             self.gloss_timeline.append(
-                GlossSegment(index=row_idx[0], name=gloss_name, start_frame=start, end_frame=end)
+                GlossSegment(index=row_idx[0], name=panel_txt, start_frame=start, end_frame=end)
             )
 
-            if mms_row.is_hold:
+            assert self.target_action is not None
+            assert self.target_shapekeys_action is not None
 
-                # The arms overridden by another gloss must play their animation, while the rest of the body holds.
-                animated_arm_prefixes = tuple(
-                    f'pose.bones["{bone_name}"]'
-                    for side, arm_override in mms_row.arm_overrides.items() if not arm_override.is_hold
-                    for bone_name in arm_bones[side]
-                )
+            #
+            # Append bones and shapekeys actions and get the new end_frame
+            #
+            assert mms_row_info.inflected_action is not None
+            end_frame = self.append_action(
+                target_action=self.target_action,
+                source_action=mms_row_info.inflected_action,
+                start=start
+            )
 
-                inflected_action = bpy.data.actions[f"inflected_{mms_row.output_name}"]  # TODO -- somehow remove this hard-coded name
-                end_frame = self.perform_hold(
-                    target_action=self.target_action,
-                    source_action=inflected_action,
-                    start=start,
-                    end=end,
-                    data_path_filter=lambda data_path: not data_path.startswith(animated_arm_prefixes)
-                )
-                if len(animated_arm_prefixes) > 0:
-                    self.append_action(
-                        target_action=self.target_action,
-                        source_action=inflected_action,
-                        start=start,
-                        data_path_filter=lambda data_path: data_path.startswith(animated_arm_prefixes)
-                    )
-                end_frame = self.perform_hold(
-                    target_action=self.target_shapekeys_action,
-                    source_action=bpy.data.actions[f"resampled_blendshapes_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name
-                    start=start,
-                    end=end
-                )
+            assert mms_row_info.resampled_maingloss_shapekeys_action is not None
+            end_frame_shapekeys = self.append_action(
+                target_action=self.target_shapekeys_action,
+                source_action=mms_row_info.resampled_maingloss_shapekeys_action,
+                start=start
+            )
+    
+            assert end_frame == end_frame_shapekeys, f"Resampled armature action ends at a different frame than the shapekeys action {end_frame} != {end_frame_shapekeys}"
 
-            else:
-                # Combine the animation and get the new end_frame
-                end_frame = self.append_action(
-                    target_action=self.target_action,
-                    source_action=bpy.data.actions[f"inflected_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name
-                    start=start
-                )
-
-                end_frame_shapekeys = self.append_action(
-                    target_action=self.target_shapekeys_action,
-                    source_action=bpy.data.actions[f"resampled_blendshapes_{mms_row.output_name}"],  # TODO -- somehow remove this hard-coded name
-                    start=start
-                )
-
-            # We assume that the animation was already scaled. So the returned end_frame must be compatible with
-            # the expected end frame. Compatible means +/- 1, according to rounding errors.
-            assert end - 1 <= end_frame <= end + 1, f"{end} != {end_frame}"
+            # We assume that the animation was already scaled.
+            # So the returned end_frame must be compatible with
+            # the expected end frame.
+            assert end == end_frame, f"{end} != {end_frame}"

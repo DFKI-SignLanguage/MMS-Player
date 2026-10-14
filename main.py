@@ -25,9 +25,9 @@ MMS_PLAYER_ROOT_PATH = Path(__file__).resolve().parent
 sys.path.append(str(MMS_PLAYER_ROOT_PATH))
 
 
-from player.mms_parser import MMSParser, MMSLineDataInfo, ARM_OVERRIDE_COLUMNS
-from player.action_utils import ActionOperator, load_gloss_actions, override_bone_fcurves, hold_bone_fcurves
-from player.merge import Glue, GlossSegment
+from player.mms_parser import MMSParser
+from player.action_utils import load_gloss_actions, resample_action, override_bone_fcurves, hold_bone_fcurves, create_bone_hold_action, create_hold_action
+from player.merge import Glue, GlossSegment, MMSLineDataInfo
 from player.inflection import InflectionDirector
 from player.inflection import IKTargetConfig
 from player.bpy_utils import select_object, duplicate_armature
@@ -434,11 +434,11 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         mmsline = mms[row_idx]
 
         # Instantiate a new euxiliary row data info
-        mms_line_info = MMSLineDataInfo(mms_line=mmsline)
-        rows_info[row_idx] = mms_line_info
+        mmsline_info = MMSLineDataInfo(mms_line=mmsline)
+        rows_info[row_idx] = mmsline_info
 
         # Compose the Blender file name and check for its availability
-        mms_line_info.compose_file_paths(dictionary_root=dictionary_root)
+        mmsline_info.compose_file_paths(dictionary_root=dictionary_root)
 
 
     #
@@ -540,8 +540,10 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # In relative time mode, combined with transition duration, it allows to compute the start of the next gloss.
     last_gloss_end: int = 1
 
-    # The (not inflected) resampled action of the previous row. Needed by the <HOLD> arm overrides.
-    prev_resampled_action: Optional[bpy.types.Action] = None
+    # The inflected action of the previous row. Its last frame is the reference pose for the <HOLD> glosses and arm overrides.
+    prev_inflected_action: Optional[bpy.types.Action] = None
+    # The shape keys action of the previous row. Its last frame is the reference facial expression for the <HOLD> glosses.
+    prev_shapekeys_action: Optional[bpy.types.Action] = None
 
     for row_idx in mms.row_indices:
 
@@ -550,38 +552,39 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         logger.info(f"Processing gloss {row_idx}")
 
-        # TODO -- in case of HOLD, now we are essentially resampling the whole action of the previous gloss.
-        #         We could optimize it with an ad-hoc execution branch that simply copies two times the last frame of the previous action.
-
-        # Pass it through the ActionOperator class and prepare the animation for further
-        # processing. Since we want to have the same number of frames as the source
-        # sentence, we are resampling the animation frames.
-        action_operator = ActionOperator(mmsline_info)
-
-        action_operator.load_actions()
-
-        # Here the "imported_" actions have been created
-        assert action_operator.imported_main_armature_action is not None
-        assert action_operator.imported_main_shapekeys_action is not None
+        # Load the actions (including overriding arms, if present) and prepare other info for further processing.
+        mmsline_info.load_actions()
 
         # Here we perform all the timing computation.
         # It uses teh timing information in the MMSLine, the framrate of the input gloss scene, the desired frame output.
         # After this, all further computations are frame-based. Timings in seconds, relative durations, and framerates can be forgotten.
-        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, src_action_duration_secs=action_operator.imported_main_gloss_duration_secs, last_gloss_end_frame=last_gloss_end, target_fps=target_fps)
+        mmsline_info.compute_target_frame_range(use_rel_time=arguments.use_relative_time, last_gloss_end_frame=last_gloss_end, target_fps=target_fps, force_100pct=arguments.ignore_gloss_duration)
         assert mmsline_info.target_frame_range is not None
+        # Store value for the next iteration.
         last_gloss_end = mmsline_info.target_frame_range[1]
 
         #
-        # Resample actions to a target frame range
-        if not arguments.ignore_gloss_duration:
-            src_action = action_operator.imported_main_armature_action
-            mmsline_info.maingloss_original_frame_range = src_action.frame_range[0], src_action.frame_range[1]
+        # A <HOLD> main gloss freezes the whole body at the last pose realized by the previous row
+        # (including its arm overrides and inflection), rather than at the last pose of the reloaded previous gloss.
+        if mmsline.maingloss_info.is_hold:
+            assert prev_inflected_action is not None
+            logger.info(f"Holding the body at the last pose of '{prev_inflected_action.name}'")
+            # hold_bone_fcurves(target_action=resampled_action, source_action=prev_inflected_action,
+            #                   bone_names=ANIMATED_BONE_LIST, n_frames=mmsline_info.resampled_duration_frames)
+            mmsline_info.resampled_maingloss_action = create_bone_hold_action(target_action_name="resampled_" + mmsline.output_name, source_action=prev_inflected_action,
+                                                  bone_names=ANIMATED_BONE_LIST, n_frames=mmsline_info.resampled_duration_frames)
+            assert prev_shapekeys_action is not None
+            logger.info(f"Holding the face at the last expression of '{prev_shapekeys_action.name}'")
+            mmsline_info.resampled_maingloss_shapekeys_action = create_hold_action(target_action_name="resampled_blendshapes_" + mmsline.output_name, source_action=prev_shapekeys_action,
+                                                                                             n_frames=mmsline_info.resampled_duration_frames)
 
-            resampled_action = action_operator.resample_action(src_action_name=src_action.name, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
-            action_operator.resample_action(src_action_name=action_operator.imported_main_shapekeys_action.name, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+        else:
+            # Resample actions to a target frame range
+            mmsline_info.resampled_maingloss_action = resample_action(src_action=mmsline_info.imported_maingloss_armature_action, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
+            mmsline_info.resampled_maingloss_shapekeys_action = resample_action(src_action=mmsline_info.imported_maingloss_shapekeys_action, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
 
-            # After resampling, the frame range of the actions has been approximated to the integer frame position.
-            resampled_frame_range = resampled_action.frame_range
+            # After resampling, actions surely start from frame 1, and their frame range of the actions has been approximated to the integer frame positions.
+            resampled_frame_range = mmsline_info.resampled_maingloss_action.frame_range
             logger.info(f"Resampled_range: {resampled_frame_range}, target range: {mmsline_info.target_frame_range}")
 
             assert resampled_frame_range[0] == int(resampled_frame_range[0])
@@ -589,47 +592,69 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
             assert resampled_frame_range[1] == int(resampled_frame_range[1])
 
 
-        # Here the "resampled_..." action has been created
-        assert "resampled_" + mmsline.output_name in bpy.data.actions
+        # Here the "resampled_..." actions have been created
+        assert mmsline_info.resampled_maingloss_action is not None
+        assert mmsline_info.resampled_maingloss_action.name in bpy.data.actions
+        assert mmsline_info.resampled_maingloss_shapekeys_action is not None
+        assert mmsline_info.resampled_maingloss_shapekeys_action.name in bpy.data.actions
+
 
         #
-        # Override the animation of the arms (domarm/ndomarm columns), before the inflection.
-        for side, arm_override in mmsline.arm_overrides.items():
-            if arguments.ignore_gloss_duration:
-                raise Exception(f"The {ARM_OVERRIDE_COLUMNS[side]} column can not be used together with --ignore-gloss-duration.")
-
-            if arm_override.is_hold:
-                assert prev_resampled_action is not None
-                logger.info(f"Holding the {side} arm at the last pose of '{prev_resampled_action.name}'")
-                hold_bone_fcurves(target_action=resampled_action, source_action=prev_resampled_action,
-                                  bone_names=ARM_BONES[side], n_frames=mmsline_info.resampled_duration_frames)
+        # Manage DOMARM and NDOMARM
+        #
+        if mmsline.domarm_info is not None:
+            if mmsline.domarm_info.is_hold:
+                assert prev_inflected_action is not None
+                logger.info(f"Holding the domarm at the last pose of '{prev_inflected_action.name}'")
+                hold_bone_fcurves(target_action=mmsline_info.resampled_maingloss_action, source_action=prev_inflected_action,
+                                bone_names=ARM_BONES["dom"], n_frames=mmsline_info.resampled_duration_frames)
             else:
-                assert arm_override.name is not None
-                logger.info(f"Overriding the {side} arm with gloss '{arm_override.name}'")
-                arm_output_name = f"{mmsline.output_name}_{ARM_OVERRIDE_COLUMNS[side]}"
-                arm_body_action, arm_shapekeys_action, _ = load_gloss_actions(
-                    blend_path=mmsline_info.arm_override_paths[side], gloss_name=arm_override.name, output_name=arm_output_name)
+                assert mmsline.domarm_info.name is not None
+                assert mmsline_info.imported_domarm_action is not None
+
+                logger.info(f"Overriding the dom arm with gloss '{mmsline.domarm_info.name}'")
                 # The override gloss lasts as much as the main gloss.
-                arm_resampled_action = ActionOperator.resample_action(
-                    src_action_name=arm_body_action.name, target_action_name="resampled_" + arm_output_name,
+                mmsline_info.resampled_domarm_action = resample_action(
+                    src_action=mmsline_info.imported_domarm_action, target_action_name=f"resampled_domarm_{mmsline.output_name}",
                     target_framecount=mmsline_info.resampled_duration_frames)
-                override_bone_fcurves(target_action=resampled_action, source_action=arm_resampled_action, bone_names=ARM_BONES[side])
+                override_bone_fcurves(target_action=mmsline_info.resampled_maingloss_action, source_action=mmsline_info.resampled_domarm_action, bone_names=ARM_BONES["dom"])
                 # Only the arm bones of the body action are used. The face animation comes from the main gloss.
-                for arm_action in (arm_body_action, arm_shapekeys_action, arm_resampled_action):
-                    bpy.data.actions.remove(arm_action)
+
+        if mmsline.ndomarm_info is not None:
+            if mmsline.ndomarm_info.is_hold:
+                assert prev_inflected_action is not None
+                logger.info(f"Holding the ndomarm at the last pose of '{prev_inflected_action.name}'")
+                hold_bone_fcurves(target_action=mmsline_info.resampled_maingloss_action, source_action=prev_inflected_action,
+                                bone_names=ARM_BONES["ndom"], n_frames=mmsline_info.resampled_duration_frames)
+            else:
+                assert mmsline.ndomarm_info.name is not None
+                assert mmsline_info.imported_ndomarm_action is not None
+
+                logger.info(f"Overriding the ndom arm with gloss '{mmsline.ndomarm_info.name}'")
+                # The override gloss lasts as much as the main gloss.
+                mmsline_info.resampled_ndomarm_action = resample_action(
+                    src_action=mmsline_info.imported_ndomarm_action, target_action_name=f"resampled_ndomarm_{mmsline.output_name}",
+                    target_framecount=mmsline_info.resampled_duration_frames)
+                override_bone_fcurves(target_action=mmsline_info.resampled_maingloss_action, source_action=mmsline_info.resampled_ndomarm_action, bone_names=ARM_BONES["ndom"])
+                # Only the arm bones of the body action are used. The face animation comes from the main gloss.
+
+
 
         # Create an armature referencing the resampled action
-        # TODO -- Consider to reuse the target armature and assign the resampled action, instead of duplicating the armature for each gloss-action to playback.
-        resampled_armature = duplicate_armature(armature_obj=target_armature, named_action=resampled_action)
+        # TODO -- Consider reusing the target armature and assign the resampled action, instead of duplicating the armature for each gloss-action to playback.
+        resampled_armature = duplicate_armature(armature_obj=target_armature, named_action=mmsline_info.resampled_maingloss_action)
 
         # Create a new armature referencing a new action for the inflected sign
-        inflected_action = bpy.data.actions.new(name=f"inflected_{mmsline.output_name}")
-        inflected_armature = duplicate_armature(armature_obj=target_armature, named_action=inflected_action)
+        mmsline_info.inflected_action = bpy.data.actions.new(name=f"inflected_{mmsline.output_name}")
+        inflected_armature = duplicate_armature(armature_obj=target_armature, named_action=mmsline_info.inflected_action)
         # Here an empty target "inflected_..." action has been created
-        assert f"inflected_{mmsline.output_name}" in bpy.data.actions
+        assert mmsline_info.inflected_action.name in bpy.data.actions
+
 
         #
         # Setup the inflection procedure
+        #
+
         inflector = InflectionDirector(target_armature=inflected_armature,
                                src_armature_name=resampled_armature.name,
                                target_configs=ik_target_config_list,
@@ -637,14 +662,19 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         inflector.setup_chain(
             source_armature=resampled_armature,
             target_armature=inflected_armature,
-            inflected_action_name=f"inflected_{mmsline.output_name}",
+            inflected_action_name=mmsline_info.inflected_action.name,
             mms_line=mms[row_idx],
             without_inflection=arguments.without_inflection,
         )
 
+        #
         # Perform the inflection !!!
         if not arguments.without_inflection:
             inflector.execute(inflected_armature, mmsline)
+
+        #
+        # Cleanup
+        #
 
         #
         # Remove unneeded armatures and actions.
@@ -667,32 +697,16 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         bpy.data.objects.remove(inflected_armature)
         bpy.data.armatures.remove(inflected_armature_data)
 
-        # The intermediate actions superseded by "resampled_"/"inflected_".
-        for stale_action_name in (
-            action_operator.imported_main_armature_action.name,
-            action_operator.imported_main_shapekeys_action.name,
-        ):
-            stale_action = bpy.data.actions.get(stale_action_name)
-            if stale_action is not None:
-                bpy.data.actions.remove(stale_action)
+        # The "inflected_" action survives until the Glue step, and is the source for the <HOLD> of the next row.
+        prev_inflected_action = mmsline_info.inflected_action # bpy.data.actions[f"inflected_{mmsline.output_name}"]
+        # The "resampled_blendshapes_" action survives until the Glue step too, and is the source for the face <HOLD> of the next row.
+        prev_shapekeys_action = mmsline_info.resampled_maingloss_shapekeys_action
 
-        # The "resampled_" action is kept until the next row, as source for the <HOLD> arm overrides.
-        if prev_resampled_action is not None:
-            bpy.data.actions.remove(prev_resampled_action)
-        prev_resampled_action = bpy.data.actions.get("resampled_" + mmsline.output_name)
-
-    if prev_resampled_action is not None:
-        bpy.data.actions.remove(prev_resampled_action)
+        #
+        # END of the main MMS row scanning and action manipulation loop
+        #
 
     logger.info("MMS rows processed. Single gloss animations have been inflected.")
-
-    #
-    # For each MMS line, the inflected action has been created
-    for row_idx in mms.row_indices:
-        mmsline = mms[row_idx]
-        # print("Expected inflected action presence ", "inflected_" + mmsline.output_name)
-        assert "inflected_" + mmsline.output_name in bpy.data.actions
-        assert "resampled_blendshapes_" + mmsline.output_name in bpy.data.actions
 
     #
     # Finally we merge individual signs to produce the final utterance of the full sentence.
@@ -764,6 +778,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
     #
     # Checking bones coherence
+    #
     animated_bone_names = {
         fcurve.data_path.split('"')[1]
         for fcurve in target_action.fcurves
@@ -777,6 +792,33 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
             f"The following bones are animated in '{target_action.name}' but are not listed in "
             f"'{ANIMATED_BONES_LIST_PATH}': {sorted(unexpected_animated_bone_names)}"
         )
+
+    #
+    # Here is the only place where we manually remove all unused actions
+    # By commenting this code block, all actions stays there: useful for debugging
+    # For each MMS line, remove the temporary actions
+    logger.info("Removing unused intermetiate actions...")
+    for row_idx in mms.row_indices:
+        logger.info(f"ROW {row_idx}")
+        mmsline = mms[row_idx]
+        mmsline_info = rows_info[row_idx]
+
+        for stale_action in (
+            mmsline_info.imported_maingloss_armature_action,
+            mmsline_info.imported_maingloss_shapekeys_action,
+            mmsline_info.resampled_maingloss_action,
+            mmsline_info.resampled_maingloss_shapekeys_action,
+            mmsline_info.imported_domarm_action,
+            mmsline_info.imported_domarm_shapekeys_action,
+            mmsline_info.resampled_domarm_action,
+            mmsline_info.imported_ndomarm_action,
+            mmsline_info.imported_ndomarm_shapekeys_action,
+            mmsline_info.resampled_ndomarm_action,
+            mmsline_info.inflected_action,
+        ):
+            if stale_action is not None:
+                logger.info(f"Removing {stale_action.name}")
+                bpy.data.actions.remove(stale_action)
 
 
     #
@@ -797,6 +839,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         gloss_panel=arguments.gloss_panel,
         gloss_timeline=glue.gloss_timeline,
     )
+
+    logger.info("MMS realization done.")
 
 
 #
