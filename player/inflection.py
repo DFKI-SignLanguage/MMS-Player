@@ -32,6 +32,11 @@ from player.logging import logger
 from player.mms_parser import MMSLine
 
 
+def _or_identity(value, identity):
+    """Returns the value, or the given identity if the value is None (i.e., the MMS cells were empty)."""
+    return identity if value is None else value
+
+
 class Target(ABC):
     """Target is an object or a bone that controls the inflection.
 
@@ -273,9 +278,11 @@ class TrajectoryTarget(GenericTarget):
         bpy.context.view_layer.update()
 
     def init_from_mms(self, mms):
-        h_translation = mms.translation(self.dominance)
-        h_rotation = mms.traj_rotation(self.dominance)
-        h_scale = mms.scale(self.dominance)
+        # Empty cells default to identity transformations
+        identity = mathutils.Matrix.Identity(4)
+        h_translation = _or_identity(mms.translation(self.dominance), identity)
+        h_rotation = _or_identity(mms.traj_rotation(self.dominance), identity)
+        h_scale = _or_identity(mms.scale(self.dominance), identity)
         self.delta_r = h_rotation @ h_scale
         self.delta_t = h_translation
 
@@ -296,11 +303,12 @@ class RelativeLocRotTarget(TrajectoryTarget):
         return f"Relative Location/Rotation Target for {self.target_bone}"
 
     def init_from_mms(self, mms):
+        # Empty cells default to identity transformations
         if self.inflection_type == "torso":
-            self.delta_t = mms.torso_shift()
-            self.delta_o = mms.torso_rot()
+            self.delta_t = _or_identity(mms.torso_shift(), mathutils.Matrix.Identity(4))
+            self.delta_o = _or_identity(mms.torso_rot(), mathutils.Quaternion())
         elif self.inflection_type == "shoulder":
-            self.delta_t = mms.shoulder_shift(self.dominance)
+            self.delta_t = _or_identity(mms.shoulder_shift(self.dominance), mathutils.Matrix.Identity(4))
 
 
 class HeadRotTarget(TrajectoryTarget):
@@ -317,7 +325,7 @@ class HeadRotTarget(TrajectoryTarget):
         return f"Relative Location/Rotation Target for {self.target_bone}"
 
     def init_from_mms(self, mms):
-        self.delta_o = mms.head_rot()
+        self.delta_o = _or_identity(mms.head_rot(), mathutils.Quaternion())
 
 
 class IKTargetConfig:

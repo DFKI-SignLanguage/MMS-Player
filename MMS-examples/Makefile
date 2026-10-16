@@ -1,7 +1,7 @@
 #
 # Use:
-# cd ..
-# make -f MMS-examples/GenerateExampleVideos.mk
+# cd MMS-examples
+# make
 
 
 ifndef BLENDER_EXE
@@ -15,7 +15,7 @@ endif
 FFMPEG_EXE ?= ffmpeg
 
 # Gets the list of MMS files and replace the suffix to mp4 to generate the list of targets
-MMS_FILES := $(wildcard MMS-examples/*.mms.csv)
+MMS_FILES := $(wildcard *.mms.csv)
 OUT_VIDEO_FILES = $(subst .mms.csv,.mp4,$(MMS_FILES))
 OUT_GIF_FILES = $(subst .mp4,.gif,$(OUT_VIDEO_FILES))
 
@@ -25,7 +25,7 @@ all: $(OUT_VIDEO_FILES) $(OUT_GIF_FILES)
 
 # Main rule to create a video from an MMS
 %.mp4: %.mms.csv
-	$(BLENDER_EXE) --background --python-exit-code 1 --python main.py -- --dictionary-dir "$(DICTIONARY_DIR)" --source-mms-file "$<" --use-relative-time --export-mp4 "$@" --render-size-pct 50 --log-to-console --gloss-panel --target-fps 30
+	$(BLENDER_EXE) --background --python-exit-code 1 --python ../main.py -- --dictionary-dir "$(DICTIONARY_DIR)" --source-mms-file "$<" --use-relative-time --export-mp4 "$@" --render-size-pct 50 --log-to-console --gloss-panel --target-fps 30
 
 # Rule to create a half-resolution, 15fps animated GIF from a generated video
 %.gif: %.mp4
@@ -35,4 +35,4 @@ clean:
 	rm -f $(OUT_VIDEO_FILES) $(OUT_GIF_FILES)
 
 touch:
-	@touch Examples-MMS/*.mms.csv
+	@touch MMS_FILES

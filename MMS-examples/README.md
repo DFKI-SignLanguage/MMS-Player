@@ -9,13 +9,13 @@ All the examples are manually edited using the `duration` and `transition` colum
 
 Example files finish with extensions `.mms.csv`, as reminder that they are conceptually mms files but can be edited as common CSV files.
 
-There is a `GenerateExampleVideos.mk` makefile allowing the automate the generation of a video for each MMS in this folder.
+There is a `Makefile` allowing the automate the generation of a video for each MMS in this folder.
 
 ```bash
-cd ..
 export BLENDER_EXE=/path/to/blender/binary
 export DICTIONARY_DIR=/path/to/dictionary/
-make -f MMS-examples/GenerateExampleVideos.mk
+cd MMS-Examples
+make
 ```
 
-For each *.mms.csv file, corresponding *.mp4 and .gif files are created.
+For each *.mms.csv file, corresponding *.mp4 and *.gif files are created.
