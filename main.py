@@ -186,7 +186,7 @@ def add_options(arg_parser: argparse.ArgumentParser):
     arg_parser.add_argument(
         "--gloss-panel",
         action="store_true",
-        help="If set, adds a procedurally-generated panel at the bottom of the camera view, showing the "
+        help="If set, adds a procedurally-generated panel at the top of the camera view, showing the "
              "previous/current/next gloss being played (or the transition between two glosses). "
              "Handy for debugging purposes.",
     )
@@ -731,15 +731,18 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # Since the animation data is empty after initializing a new one,
     # it is necessary to create f-curves that match the source data.
 
-    # Take reference to the first gloss and their created actions.
-    # They will be used as reference to create the fcurves in the target actions.
-    row_idx0 = mms.row_indices[0]
-    mmsline0 = mms[row_idx0]
+    # The actions of all the glosses are used as reference to create the fcurves in the target actions.
+    # Not only the first one: rows can have different fcurves (e.g., only the baked, inflected, rows have the bones scale).
+    ref_actions: List[bpy.types.Action] = []
+    ref_shapekeys_actions: List[bpy.types.Action] = []
+    for row_idx in mms.row_indices:
+        mmsline_info = rows_info[row_idx]
+        assert mmsline_info.inflected_action is not None
+        assert mmsline_info.resampled_maingloss_shapekeys_action is not None
+        ref_actions.append(mmsline_info.inflected_action)
+        ref_shapekeys_actions.append(mmsline_info.resampled_maingloss_shapekeys_action)
 
-    ref_action = bpy.data.actions["inflected_" + mmsline0.output_name]
-    ref_shapekeys_action = bpy.data.actions["resampled_blendshapes_" + mmsline0.output_name]
-
-    glue.prepare_target_actions(reference_action=ref_action, reference_shapekeys_action=ref_shapekeys_action)
+    glue.prepare_target_actions(reference_actions=ref_actions, reference_shapekeys_actions=ref_shapekeys_actions)
     assert glue.target_action is not None
     assert glue.target_shapekeys_action is not None
 

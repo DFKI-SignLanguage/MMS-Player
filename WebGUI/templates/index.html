@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en" style="font-size: {{ font_size_px }}px">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MMS-Player Editor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ boot.version }}">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">MMS-Player <span>Editor</span></div>
+  <div class="file-controls">
+    <button id="btn-new" title="Start a new MMS">New</button>
+    <select id="sel-open" title="Open an MMS from the project folder or from the examples">
+      <option value="">Open…</option>
+    </select>
+    <input id="inp-name" type="text" spellcheck="false" title="File name in the project folder">
+    <button id="btn-save" title="Save into the project folder (Ctrl+S)">Save</button>
+    <button id="btn-download" title="Download the MMS as CSV">Download</button>
+    <label class="button" title="Load an MMS CSV file from your computer">Import<input id="inp-import" type="file" accept=".csv" hidden></label>
+    <span id="dirty-flag" class="dirty-flag"></span>
+  </div>
+  <div class="status" id="status"></div>
+</header>
+
+<main id="layout">
+  <section id="left">
+    <div class="toolbar">
+      <div class="tool-group">
+        <button id="btn-add-row" title="Insert a row after the selected one (Ctrl+Enter)">+ Row</button>
+        <button id="btn-dup-row" title="Duplicate the selected row">Duplicate</button>
+        <button id="btn-del-row" title="Remove the selected row">Remove</button>
+        <button id="btn-up-row" title="Move the selected row up (Alt+↑)">↑</button>
+        <button id="btn-down-row" title="Move the selected row down (Alt+↓)">↓</button>
+      </div>
+      <div class="tool-group">
+        <label title="Use the duration/transition columns (relative timing) instead of the absolute framestart/frameend">
+          <input type="checkbox" id="chk-relative"> Relative timing
+        </label>
+      </div>
+      <div class="tool-group" id="inflection-toggles">
+        <span class="tool-label">Inflections:</span>
+      </div>
+      <div class="tool-group">
+        <button id="btn-expand-all" title="Show the x/y/z components of all the inflection parameters">Expand x/y/z</button>
+        <button id="btn-collapse-all" title="Group the x/y/z components in a single cell">Collapse x/y/z</button>
+      </div>
+    </div>
+
+    <div id="editor-area">
+      <aside id="sign-browser">
+        <div class="panel-title">Signs <span id="sb-count" class="muted"></span></div>
+        <input id="sb-filter" type="search" placeholder="Filter signs…" spellcheck="false" autocomplete="off">
+        <div id="sb-target" class="sb-target">Select a gloss cell to insert signs.</div>
+        <ul id="sb-list" tabindex="-1"></ul>
+        <div id="sb-preview">
+          <div id="sb-preview-title" class="panel-title">Preview</div>
+          <div class="sb-video-box">
+            <video id="sb-video" muted loop playsinline autoplay controls></video>
+            <div id="sb-preview-status" class="overlay-status">Click a sign to preview it.<br>Double click to insert it.</div>
+          </div>
+        </div>
+      </aside>
+
+      <div id="table-column">
+        <div id="table-wrap">
+          <table id="mms-table">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="validation" hidden></div>
+      </div>
+
+    </div>
+
+    <div id="timeline-panel">
+      <div class="timeline-head">
+        <span class="panel-title">Timeline</span>
+        <span id="tl-total" class="muted"></span>
+        <span id="tl-note" class="muted"></span>
+        <label class="zoom">Zoom <input type="range" id="tl-zoom" min="20" max="400" value="120"></label>
+      </div>
+      <div id="timeline-scroll">
+        <div id="timeline"></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="splitter" title="Drag to resize"></div>
+
+  <section id="right">
+    <div class="gen-controls">
+      <button id="btn-generate" class="primary" title="Render the MMS into a video">Generate</button>
+      <button id="btn-cancel" hidden>Cancel</button>
+      <label title="Render size, as percentage of 1080×1920">Size
+        <select id="opt-size">
+          <option value="25">25%</option>
+          <option value="50">50%</option>
+          <option value="75">75%</option>
+          <option value="100">100%</option>
+        </select>
+      </label>
+      <label title="Show the played glosses at the top of the video"><input type="checkbox" id="opt-panel"> Gloss panel</label>
+    </div>
+
+    <div id="progress" hidden>
+      <div class="progress-bar"><div class="progress-fill"></div></div>
+      <div class="progress-text"><span id="progress-phase"></span><span id="progress-time" class="muted"></span></div>
+      <details id="log-details"><summary>Log</summary><pre id="job-log"></pre></details>
+    </div>
+
+    <div id="video-wrap">
+      <video id="result-video" controls playsinline></video>
+      <div id="video-placeholder" class="overlay-status">Press <b>Generate</b> to render the MMS.</div>
+    </div>
+    <div id="video-caption" class="muted"></div>
+
+    <div class="renders">
+      <div class="panel-title">Previous renders</div>
+      <ul id="render-list"></ul>
+    </div>
+  </section>
+</main>
+
+<div id="context-menu" hidden></div>
+
+<script>window.MMSWEB_BOOT = {{ boot|tojson }};</script>
+<script src="{{ url_for('static', filename='app.js') }}?v={{ boot.version }}"></script>
+</body>
+</html>

@@ -26,7 +26,7 @@
 # playing, and panning to the next one during a transition. This avoids swapping the displayed
 # text at every gloss/transition boundary, which reads as an abrupt jump rather than a flow.
 #
-# The panel is parented to the render camera (so it always sits at the bottom of the camera view,
+# The panel is parented to the render camera (so it always sits at the top of the camera view,
 # regardless of the camera's own position/animation). Since Blender doesn't support keyframing a
 # string property, both the highlight and the scroll position are driven by a `frame_change_pre`
 # handler. This module doesn't touch the source .blend scene: every object it needs is created
@@ -78,7 +78,7 @@ def setup_gloss_panel(camera_obj: bpy.types.Object, gloss_timeline: List[GlossSe
     """Create the gloss subtitle panel, parent it to `camera_obj`, and register the per-frame
     handler that keeps its highlight and scroll position in sync with the current playback frame.
 
-    :param camera_obj: The camera the panel should be attached to (bottom of its view).
+    :param camera_obj: The camera the panel should be attached to (top of its view).
     :param gloss_timeline: The realized (start_frame, end_frame) range of every gloss, as produced by `Glue.realize_mms()`.
     """
     global _timeline, _part_spans, _arrow_spans, _scroll_control_points, _panel_anchor
@@ -185,7 +185,7 @@ def _create_backdrop_object(name: str) -> bpy.types.Object:
 
 
 def _place_on_camera(text_obj: bpy.types.Object, backdrop_obj: bpy.types.Object, camera_obj: bpy.types.Object) -> Vector:
-    """Parent both objects to `camera_obj`, and position/scale them to sit near the bottom edge of
+    """Parent both objects to `camera_obj`, and position/scale them to sit near the top edge of
     the camera's view frustum, computed from the current scene's render resolution/aspect ratio.
 
     :returns: the fixed camera-local point the text scrolls around, see `_build_scroll_control_points()`.
