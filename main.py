@@ -451,32 +451,34 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     # The way items are added to the bone list defines the execution order for the
     # ik target.
 
-    logger.info(f"Reading Inflection configuration from '{CONFIG_PATH}'...")
-    if not CONFIG_PATH.exists():
-        raise Exception(f"The config '{CONFIG_PATH}' couldn't be located.")
-
-    with open(CONFIG_PATH, "r") as stream:
-        config_data = json.load(stream)
-
-    ik_config = IKTargetConfig(config_data)
-
     # The candidate inflectors, associated to their inflection group (see mms_parser.INFLECTION_GROUPS).
     # The order of the list defines the execution order of the IK targets.
     # Only the groups having columns in the MMS are kept. Then, for each row, only the groups with filled cells are applied.
-    ik_target_candidates: List[Tuple[str, IKTargetConfig]] = [
-        ("torso", ik_config.torso),
-        ("head", ik_config.head),
-        ("domshoulder", ik_config.shoulders.dom),
-        ("ndomshoulder", ik_config.shoulders.ndom),
-        ("domhandreloc", ik_config.hands.dom.loc),
-        ("domhandrot", ik_config.hands.dom.rot),
-        ("ndomhandreloc", ik_config.hands.ndom.loc),
-        ("ndomhandrot", ik_config.hands.ndom.rot),
-    ]
-    ik_target_candidates = [(group, cfg) for group, cfg in ik_target_candidates if mms.inflections_availability_dict[group]]
+    ik_target_candidates: List[Tuple[str, IKTargetConfig]] = []
 
     if arguments.without_inflection:
-        ik_target_candidates.clear()
+        logger.info("Inflection disabled: skipping the inflection configuration.")
+    else:
+        logger.info(f"Reading Inflection configuration from '{CONFIG_PATH}'...")
+        if not CONFIG_PATH.exists():
+            raise Exception(f"The config '{CONFIG_PATH}' couldn't be located.")
+
+        with open(CONFIG_PATH, "r") as stream:
+            config_data = json.load(stream)
+
+        ik_config = IKTargetConfig(config_data)
+
+        ik_target_candidates = [
+            ("torso", ik_config.torso),
+            ("head", ik_config.head),
+            ("domshoulder", ik_config.shoulders.dom),
+            ("ndomshoulder", ik_config.shoulders.ndom),
+            ("domhandreloc", ik_config.hands.dom.loc),
+            ("domhandrot", ik_config.hands.dom.rot),
+            ("ndomhandreloc", ik_config.hands.ndom.loc),
+            ("ndomhandrot", ik_config.hands.ndom.rot),
+        ]
+        ik_target_candidates = [(group, cfg) for group, cfg in ik_target_candidates if mms.inflections_availability_dict[group]]
 
     # Log information about the inflections
     logger.info("==================================")
