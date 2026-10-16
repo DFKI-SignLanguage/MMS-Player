@@ -293,17 +293,19 @@ class Glue:
         self.gloss_timeline: List[GlossSegment] = []
 
 
-    def prepare_target_actions(self, reference_action: bpy.types.Action, reference_shapekeys_action: bpy.types.Action):
+    def prepare_target_actions(self, reference_actions: List[bpy.types.Action], reference_shapekeys_actions: List[bpy.types.Action]):
         """Create new empty actions for the target armature and mesh objects.
-         Copies the list of fcurves from the given actions parameter.
+         Creates the union of the fcurves of the given reference actions.
         """
 
         #
         # Initialize the ARMATURE
         self.target_action = bpy.data.actions.new(self.action_name)
 
-        for source_fcurve in reference_action.fcurves:
-            self.target_action.fcurves.new(source_fcurve.data_path, index=source_fcurve.array_index)
+        for reference_action in reference_actions:
+            for source_fcurve in reference_action.fcurves:
+                if self.target_action.fcurves.find(source_fcurve.data_path, index=source_fcurve.array_index) is None:
+                    self.target_action.fcurves.new(source_fcurve.data_path, index=source_fcurve.array_index)
 
         # Assign the action to the ARMATURE object
         self.armature_obj.animation_data_create()
@@ -315,8 +317,10 @@ class Glue:
         # Initialize the MESH
         self.target_shapekeys_action = bpy.data.actions.new(self.shapekeys_action_name)
 
-        for source_fcurve in reference_shapekeys_action.fcurves:
-            self.target_shapekeys_action.fcurves.new(source_fcurve.data_path, index=source_fcurve.array_index)
+        for reference_shapekeys_action in reference_shapekeys_actions:
+            for source_fcurve in reference_shapekeys_action.fcurves:
+                if self.target_shapekeys_action.fcurves.find(source_fcurve.data_path, index=source_fcurve.array_index) is None:
+                    self.target_shapekeys_action.fcurves.new(source_fcurve.data_path, index=source_fcurve.array_index)
 
         # Assign the shape key action to the MESH objects
         # self.shape_keys.animation_data_create()
@@ -353,7 +357,7 @@ class Glue:
             target_fcurve = target_action.fcurves.find(
                 source_fcurve.data_path, index=source_fcurve.array_index
             )
-            # print(f"After searching {source_fcurve.data_path} --> {target_fcurve}")
+            assert target_fcurve is not None, f"Target action {target_action.name} has no fcurve {source_fcurve.data_path}[{source_fcurve.array_index}]"
             # Copy, 1-by-1, all the keyframes
             for i, src_kfp in enumerate(source_fcurve.keyframe_points):
                 # Co-ordinates of the control points, starts from 0.
