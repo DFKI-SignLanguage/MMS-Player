@@ -459,46 +459,31 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         config_data = json.load(stream)
 
     ik_config = IKTargetConfig(config_data)
-    ik_target_config_list: List[IKTargetConfig] = []
 
-    if mms.inflections_availability_dict["torso"]:
-        ik_target_config_list.append(ik_config.torso)
-        logger.info("Added Torso Inflector.")
-
-    if mms.inflections_availability_dict["head"]:
-        ik_target_config_list.append(ik_config.head)
-        logger.info("Added Head Inflector.")
-
-    if mms.inflections_availability_dict["shoulders"]:
-        ik_target_config_list.append(ik_config.shoulders.dom)
-        ik_target_config_list.append(ik_config.shoulders.ndom)
-        logger.info("Added two Shoulder Inflectors")
-
-    if mms.inflections_availability_dict["domhandreloc"]:
-        ik_target_config_list.append(ik_config.hands.dom.loc)
-        logger.info("Added dominant hand trajectory inflector.")
-
-    if mms.inflections_availability_dict["domhandrot"]:
-        ik_target_config_list.append(ik_config.hands.dom.rot)
-        logger.info("Added dominant hand rotation inflector.")
-
-    if mms.inflections_availability_dict["ndomhandreloc"]:
-        ik_target_config_list.append(ik_config.hands.ndom.loc)
-        logger.info("Added non-dominant hand trajectory inflector.")
-
-    if mms.inflections_availability_dict["ndomhandrot"]:
-        ik_target_config_list.append(ik_config.hands.ndom.rot)
-        logger.info("Added non-dominant hand rotation inflector.")
+    # The candidate inflectors, associated to their inflection group (see mms_parser.INFLECTION_GROUPS).
+    # The order of the list defines the execution order of the IK targets.
+    # Only the groups having columns in the MMS are kept. Then, for each row, only the groups with filled cells are applied.
+    ik_target_candidates: List[Tuple[str, IKTargetConfig]] = [
+        ("torso", ik_config.torso),
+        ("head", ik_config.head),
+        ("domshoulder", ik_config.shoulders.dom),
+        ("ndomshoulder", ik_config.shoulders.ndom),
+        ("domhandreloc", ik_config.hands.dom.loc),
+        ("domhandrot", ik_config.hands.dom.rot),
+        ("ndomhandreloc", ik_config.hands.ndom.loc),
+        ("ndomhandrot", ik_config.hands.ndom.rot),
+    ]
+    ik_target_candidates = [(group, cfg) for group, cfg in ik_target_candidates if mms.inflections_availability_dict[group]]
 
     if arguments.without_inflection:
-        ik_target_config_list.clear()
+        ik_target_candidates.clear()
 
     # Log information about the inflections
     logger.info("==================================")
     logger.info("MMS File: %s", mms_file)
-    logger.info(f"List of IK target configurations ({len(ik_target_config_list)}):")
-    for ik_target in ik_target_config_list:
-        logger.info("IK Target Config: %s", ik_target.dict)
+    logger.info(f"List of candidate IK target configurations ({len(ik_target_candidates)}):")
+    for group, ik_target in ik_target_candidates:
+        logger.info("IK Target Config (%s): %s", group, ik_target.dict)
     logger.info("==================================")
 
     #
@@ -655,9 +640,14 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         # Setup the inflection procedure
         #
 
+        # Empty inflection cells mean: do not inflect. So, only the groups with values in this row get an IK target.
+        row_groups = [group for group, _ in ik_target_candidates if mmsline.has_inflection(group)]
+        row_ik_target_configs = [cfg for group, cfg in ik_target_candidates if group in row_groups]
+        logger.info(f"Inflections for this row: {row_groups}")
+
         inflector = InflectionDirector(target_armature=inflected_armature,
                                src_armature_name=resampled_armature.name,
-                               target_configs=ik_target_config_list,
+                               target_configs=row_ik_target_configs,
                                idx=row_idx[0])
         inflector.setup_chain(
             source_armature=resampled_armature,
@@ -669,7 +659,8 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
 
         #
         # Perform the inflection !!!
-        if not arguments.without_inflection:
+        # Without IK targets, the baking would be just a waste of time.
+        if not arguments.without_inflection and len(inflector.ik_targets) > 0:
             inflector.execute(inflected_armature, mmsline)
 
         #
