@@ -62,8 +62,9 @@ my-mms-project/
 * **Sign sequence** (`maingloss`, `domarm`, `ndomarm`). While you type in a gloss cell, the *Signs* panel lists the matching dictionary signs. Click a sign to preview its video. Double click a sign, or press `↓` and then `Enter`, to insert it into the edited cell. `<HOLD>` is always available.
 * **Timing.** The *Relative timing* checkbox chooses between `transition`/`duration` (relative) and `framestart`/`frameend` (absolute). The unused pair is greyed out. A file's mode is guessed when you load it.
 * **Inflections.** Each body part is a subsection: Torso, Head, Shoulders, Dominant hand, and Non-dominant hand. You can hide a body part with the toolbar checkboxes. The x/y/z components of a parameter are collapsed into one cell (`x, y, z`) by default. Use ▸/▾ in the header, or *Expand/Collapse x/y/z*, to switch.
-  * When you type a value into an empty inflection group, its other cells are filled with identity values (0, or 1 for scales).
-  * Right-click a cell to fill a group with identity values, clear it, or copy it to all rows.
+  * Empty cells are allowed: an inflection whose cells are all empty is skipped for that row, and its empty x/y/z triples default to identity values. Only the x, y and z of a single parameter must be either all filled or all empty.
+  * When you type a value into an empty x/y/z triple, its other components are filled with identity values (0, or 1 for scales).
+  * Right-click a cell to fill an inflection group with identity values, clear it, or copy it to all rows.
 * **Validation.** Problems are highlighted in the table and listed below it. Click an item to jump to its cell. Examples: unknown signs, missing timing, partially filled groups, and `<HOLD>` in the first row.
 * **Timeline.** Below the table, the timeline shows each row's time range. Main glosses and arm overrides are on separate tracks, and transitions are drawn as lines. The selected row is highlighted, and clicking a block selects its row. Percentage durations use each sign's original duration, which is read from the dictionary in the background. While a duration is still unknown, its block is dashed. A red playhead follows the generated video.
 
@@ -80,7 +81,7 @@ WebGUI/
   mmsweb/
     app.py                   Flask routes
     options.py               load/save of the persisted server options
-    schema.py                MMS column sections, x/y/z groups, fill groups, identity values
+    schema.py                MMS column sections, x/y/z groups, fill (inflection) groups, identity values
     mms_io.py                CSV parsing/serialization
     dictionary.py            index of <dictionary>/<class>/trimmed/<NAME>.blend
     jobs.py                  background job queues, subprocess handling, progress state
@@ -114,6 +115,5 @@ Progress comes from the player's output. `progress_hook.py` registers a `render_
 
 ## Known limitations
 
-* The MMS-Player crashes when a hand trajectory group (`(n)domhandreloc*`) is used in some rows but left empty in others (`player/inflection.py`, `init_from_mms`). The editor reports this as a validation error. To work around it, fill the empty rows with identity values.
 * The MMS file doesn't record whether it uses relative or absolute timing, so the editor guesses when loading: relative if any `duration` is set.
 * There is no authentication. Bind to `127.0.0.1` (the default) unless the network is trusted.

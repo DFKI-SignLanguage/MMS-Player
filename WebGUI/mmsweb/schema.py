@@ -5,8 +5,12 @@ Each section contains subsections (e.g., one per body part for inflections),
 and each subsection contains column groups. A group with more than one column
 is a set of x/y/z components that the GUI can show expanded or collapsed.
 
-Inflection columns are also organized in "fill groups": the MMS-Player requires
-that all the columns of a fill group are either all filled or all empty.
+Inflection columns are also organized in "fill groups", mirroring the inflection
+groups of the MMS-Player (player/mms_parser.py, INFLECTION_GROUPS, which can't be
+imported here since it requires Blender's mathutils). A group is applied to a row
+only if at least one of its x/y/z triples is filled; its empty triples default to
+identity values. The only requirement of the MMS-Player is that the x/y/z columns
+of a triple are either all filled or all empty.
 """
 
 import re
@@ -108,7 +112,7 @@ SECTIONS: List[dict] = [
                     _group("domshoulderreloc", "Dom. offset", _xyz("domshoulderreloc"), "cm"),
                     _group("ndomshoulderreloc", "Non-dom. offset", _xyz("ndomshoulderreloc"), "cm"),
                 ],
-                "fill_groups": [_xyz("domshoulderreloc") + _xyz("ndomshoulderreloc")],
+                "fill_groups": [_xyz("domshoulderreloc"), _xyz("ndomshoulderreloc")],
             },
             _hand_subsection("dom", "Dominant hand"),
             _hand_subsection("ndom", "Non-dominant hand"),

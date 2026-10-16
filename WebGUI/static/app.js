@@ -408,13 +408,13 @@ function clearCols(i, cols) {
   for (const c of cols) state.rows[i][c] = "";
 }
 
-/** When a value is entered in an inflection group whose other cells are empty, fill them with identity values. */
+/** When a value is entered in an x/y/z triple whose other cells are empty, fill them with identity values. */
 function autofillGroups(i, cols) {
   const row = state.rows[i];
-  const fgs = new Set(cols.filter((c) => FILL_OF[c]).map((c) => FILL_OF[c]));
-  for (const fg of fgs) {
-    const typed = cols.some((c) => fg.includes(c) && (row[c] ?? "").trim() !== "");
-    if (typed) fillIdentity(i, fg);
+  const triples = new Set(cols.filter((c) => FILL_OF[c]).map((c) => GROUP_OF_COL[c].group.columns));
+  for (const triple of triples) {
+    const typed = cols.some((c) => triple.includes(c) && (row[c] ?? "").trim() !== "");
+    if (typed) fillIdentity(i, triple);
   }
 }
 
@@ -554,7 +554,8 @@ function setupTableEvents() {
     const cols = td.dataset.col ? [td.dataset.col] : td.dataset.group ? groupById(td.dataset.group).columns : [];
     const fg = cols.length && FILL_OF[cols[0]];
     if (fg) {
-      const sub = GROUP_OF_COL[cols[0]].sub.label;
+      const { sub: s, group: g } = GROUP_OF_COL[cols[0]];
+      const sub = s.fill_groups.length > 1 ? `${s.label} – ${g.label}` : s.label;
       items.push([`Fill "${sub}" group with identity values`, () => { fillIdentity(i, fg, true); refreshRowInputs(i); markChanged(); }]);
       items.push([`Clear "${sub}" group in this row`, () => { clearCols(i, fg); refreshRowInputs(i); markChanged(); }]);
       items.push([`Copy "${sub}" group to all rows`, () => {
@@ -599,8 +600,7 @@ function validate() {
   const out = [];
   const add = (row, col, msg, level = "err") => out.push({ row, col, msg, level });
   let prevEnd = 0;
-  const trajUsed = new Set(SCHEMA.fill_groups.filter((fg) => fg[0].endsWith("handrelocx") &&
-    state.rows.some((r) => fg.some((c) => (r[c] ?? "").trim() !== ""))).map((fg) => fg[0]));
+  const triples = GROUPS.filter((g) => g.group.columns.length === 3 && g.group.columns.every(isInflection));
 
   state.rows.forEach((r, i) => {
     const v = (c) => (r[c] ?? "").trim();
@@ -641,19 +641,14 @@ function validate() {
       }
     }
 
-    // Inflections
-    for (const fg of SCHEMA.fill_groups) {
-      const filled = fg.filter((c) => v(c) !== "");
-      if (filled.length > 0 && filled.length < fg.length) {
-        const label = GROUP_OF_COL[fg[0]].sub.label;
-        for (const c of fg) if (v(c) === "") add(i, c, `${label}: all the values of the group must be filled (or all left empty).`);
+    // Inflections: empty triples default to identity (or skip the inflection),
+    // but the x/y/z of a triple must be all filled or all empty.
+    for (const { sub, group } of triples) {
+      const filled = group.columns.filter((c) => v(c) !== "");
+      if (filled.length > 0 && filled.length < group.columns.length) {
+        for (const c of group.columns) if (v(c) === "") add(i, c, `${sub.label} ${group.label}: x, y and z must be all filled (or all left empty).`);
       }
       for (const c of filled) if (!isFinite(parseNum(v(c)))) add(i, c, `'${v(c)}' is not a number.`);
-      // Known MMS-Player limitation: the hand trajectory inflection crashes on rows where it is empty
-      // while other rows use it.
-      if (filled.length === 0 && fg[0].endsWith("handrelocx") && trajUsed.has(fg[0])) {
-        add(i, fg[0], `${GROUP_OF_COL[fg[0]].sub.label} trajectory is empty here but used in other rows: the MMS-Player can't handle it. Fill it with identity values (right click).`);
-      }
     }
   });
   issues = out;
