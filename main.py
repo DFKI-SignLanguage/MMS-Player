@@ -566,6 +566,9 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
                                                                                              n_frames=mmsline_info.resampled_duration_frames)
 
         else:
+            assert mmsline_info.imported_maingloss_armature_action is not None
+            assert mmsline_info.imported_maingloss_shapekeys_action is not None
+
             # Resample actions to a target frame range
             mmsline_info.resampled_maingloss_action = resample_action(src_action=mmsline_info.imported_maingloss_armature_action, target_action_name="resampled_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
             mmsline_info.resampled_maingloss_shapekeys_action = resample_action(src_action=mmsline_info.imported_maingloss_shapekeys_action, target_action_name="resampled_blendshapes_" + mmsline.output_name, target_framecount=mmsline_info.resampled_duration_frames)
