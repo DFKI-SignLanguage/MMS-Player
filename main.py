@@ -186,7 +186,7 @@ def add_options(arg_parser: argparse.ArgumentParser):
     arg_parser.add_argument(
         "--gloss-panel",
         action="store_true",
-        help="If set, adds a procedurally-generated panel at the bottom of the camera view, showing the "
+        help="If set, adds a procedurally-generated panel at the top of the camera view, showing the "
              "previous/current/next gloss being played (or the transition between two glosses). "
              "Handy for debugging purposes.",
     )

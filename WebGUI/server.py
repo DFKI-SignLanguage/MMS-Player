@@ -11,8 +11,10 @@ import sys
 from pathlib import Path
 
 from mmsweb.app import ServerConfig, create_app
+from mmsweb.options import load_options, save_options
 
 WEBGUI_DIR = Path(__file__).resolve().parent
+SERVER_OPTIONS_PATH = WEBGUI_DIR / "server_options.local.json"
 
 
 def main():
@@ -30,6 +32,9 @@ def main():
     parser.add_argument("--render-workers", type=int, default=1, help="Number of videos rendered in parallel.")
     parser.add_argument("--preview-size-pct", type=int, default=25, help="Render size of the sign previews (%%).")
     parser.add_argument("--render-size-pct", type=int, default=50, help="Default render size of the generated videos (%%).")
+    parser.add_argument("--target-fps", type=int, default=None,
+                        help=f"Default FPS of the generated videos (default: 30). "
+                             f"The value is saved in {SERVER_OPTIONS_PATH.name} and reused at the next start.")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
@@ -42,6 +47,16 @@ def main():
     if not args.blender_exe:
         fail("Specify the Blender executable with --blender-exe or the BLENDER_EXE env variable.")
 
+    # Options persisted across runs: the command line overrides (and updates) the stored values.
+    options = load_options(SERVER_OPTIONS_PATH)
+    if args.target_fps is not None:
+        if args.target_fps <= 0:
+            fail("--target-fps must be a positive number.")
+        options["target_fps"] = args.target_fps
+    if float(options["font_size_px"]) <= 0:
+        fail(f"font_size_px in {SERVER_OPTIONS_PATH.name} must be a positive number.")
+    save_options(SERVER_OPTIONS_PATH, options)
+
     cfg = ServerConfig(
         dictionary_dir=Path(args.dictionary_dir).expanduser().resolve(),
         player_dir=Path(args.player_dir).expanduser().resolve(),
@@ -50,6 +65,8 @@ def main():
         render_workers=max(1, args.render_workers),
         preview_size_pct=args.preview_size_pct,
         default_render_size_pct=args.render_size_pct,
+        target_fps=int(options["target_fps"]),
+        font_size_px=float(options["font_size_px"]),
     )
 
     if not cfg.dictionary_dir.is_dir():
@@ -64,6 +81,7 @@ def main():
     print(f"MMS-Player: {cfg.player_dir}")
     print(f"Project:    {cfg.project_dir}")
     print(f"Blender:    {cfg.blender_exe}")
+    print(f"Target FPS: {cfg.target_fps} (from {SERVER_OPTIONS_PATH.name})")
     print(f"Open http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}/")
     app.run(host=args.host, port=args.port, debug=args.debug, threaded=True, use_reloader=False)
 

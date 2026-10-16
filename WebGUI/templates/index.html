@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" style="font-size: {{ font_size_px }}px">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -49,13 +49,6 @@
     </div>
 
     <div id="editor-area">
-      <div id="table-wrap">
-        <table id="mms-table">
-          <thead></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
       <aside id="sign-browser">
         <div class="panel-title">Signs <span id="sb-count" class="muted"></span></div>
         <input id="sb-filter" type="search" placeholder="Filter signs…" spellcheck="false" autocomplete="off">
@@ -69,6 +62,14 @@
           </div>
         </div>
       </aside>
+
+      <div id="table-wrap">
+        <table id="mms-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
     </div>
 
     <div id="validation" hidden></div>
@@ -100,7 +101,7 @@
           <option value="100">100%</option>
         </select>
       </label>
-      <label title="Show the played glosses at the bottom of the video"><input type="checkbox" id="opt-panel"> Gloss panel</label>
+      <label title="Show the played glosses at the top of the video"><input type="checkbox" id="opt-panel"> Gloss panel</label>
     </div>
 
     <div id="progress" hidden>

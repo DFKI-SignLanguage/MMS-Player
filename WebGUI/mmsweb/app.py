@@ -30,6 +30,8 @@ class ServerConfig:
     render_workers: int = 1
     preview_size_pct: int = 25
     default_render_size_pct: int = 50
+    target_fps: int = 30
+    font_size_px: float = 13
 
 
 class DurationCache:
@@ -100,11 +102,11 @@ def create_app(cfg: ServerConfig) -> Flask:
         boot = {
             "version": __version__,
             "schema": schema_for_client(),
-            "defaults": {"render_size_pct": cfg.default_render_size_pct},
+            "defaults": {"render_size_pct": cfg.default_render_size_pct, "target_fps": cfg.target_fps},
             "project_dir": str(cfg.project_dir),
             "dictionary_dir": str(cfg.dictionary_dir),
         }
-        return render_template("index.html", boot=boot)
+        return render_template("index.html", boot=boot, font_size_px=cfg.font_size_px)
 
     #
     # Dictionary
@@ -168,7 +170,8 @@ def create_app(cfg: ServerConfig) -> Flask:
                 write_mms_file(tmp_mms, [{"maingloss": gloss_id, "framestart": "0", "frameend": "0",
                                           "duration": "100%", "transition": "0.3"}], [])
                 runner.render_mp4(job, tmp_mms, tmp_mp4, use_relative_time=True,
-                                  render_size_pct=cfg.preview_size_pct, expected_gloss_loads=1)
+                                  render_size_pct=cfg.preview_size_pct, expected_gloss_loads=1,
+                                  target_fps=cfg.target_fps)
                 tmp_mp4.replace(out)
                 job.result = {"url": preview_url(gloss_id)}
             finally:
@@ -273,7 +276,7 @@ def create_app(cfg: ServerConfig) -> Flask:
         relative = bool(body.get("relative", True))
         size_pct = int(opts.get("render_size_pct") or cfg.default_render_size_pct)
         size_pct = max(5, min(100, size_pct))
-        target_fps = opts.get("target_fps")
+        target_fps = int(opts.get("target_fps") or cfg.target_fps)
         gloss_panel = bool(opts.get("gloss_panel"))
 
         try:
@@ -289,7 +292,7 @@ def create_app(cfg: ServerConfig) -> Flask:
         def work(job: Job):
             runner.render_mp4(job, mms_path, mp4_path, use_relative_time=relative, render_size_pct=size_pct,
                               expected_gloss_loads=count_gloss_loads(rows, HOLD_KEYWORD),
-                              target_fps=int(target_fps) if target_fps else None, gloss_panel=gloss_panel)
+                              target_fps=target_fps, gloss_panel=gloss_panel)
             job.result = {"url": f"/media/renders/{mp4_path.name}", "name": mp4_path.name,
                           "mms": mms_path.name}
 

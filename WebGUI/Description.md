@@ -46,3 +46,6 @@ While the video is generated, the user is informed of the progress of the task.
 
 This project is a standalone project which doesn't depend from the parent folder.
 It contains its own list of requirements.
+
+Once started a local file `server_options.local.json` is created with default options.
+Edit at your convenience and restart the server to apply the changes.

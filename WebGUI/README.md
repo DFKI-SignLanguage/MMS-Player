@@ -33,6 +33,15 @@ Then open <http://localhost:5050/>.
 | `--render-workers` | 1 | Number of videos rendered in parallel |
 | `--render-size-pct` | 50 | Default size of the generated videos (percentage of 1080×1920) |
 | `--preview-size-pct` | 25 | Size of the single-sign previews |
+| `--target-fps` | 30 | FPS of the generated videos and previews. Saved in `server_options.local.json` and reused at the next start |
+
+Persistent options are stored in `WebGUI/server_options.local.json` (git-ignored). The file is created at the first start. Edit it directly or pass the option on the command line, which also updates the file.
+
+Options available only in the file:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `font_size_px` | 13 | Base font size (pixels) of the web interface. All the other text sizes, and the table row heights, scale with it. Takes effect when the server restarts and the page is reloaded. |
 
 ### Project folder layout
 
@@ -67,8 +76,10 @@ my-mms-project/
 ```
 WebGUI/
   server.py                  command line entry point
+  server_options.local.json  persisted server options (created at first start)
   mmsweb/
     app.py                   Flask routes
+    options.py               load/save of the persisted server options
     schema.py                MMS column sections, x/y/z groups, fill groups, identity values
     mms_io.py                CSV parsing/serialization
     dictionary.py            index of <dictionary>/<class>/trimmed/<NAME>.blend
