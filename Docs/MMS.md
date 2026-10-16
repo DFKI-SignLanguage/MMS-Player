@@ -73,8 +73,12 @@ Each of those stages might introduce numerical approximation, not to talk about 
 In summary, computing inflection using identity values wastes computation time, and might introduce unwanted glitches.
 If an inflection is not really needed, simply skip it.
 
-Please, notice that inflection columns pertaining to the same inflection group, must all be filled qwith values, or all left empty.
-For example, if you only want to relocate/translate the dominant hand with domhandrelocx/y/z: sorry, but the other 6 columns /ax/ay/az/sx/sy/sz must be also filled, with identity values.
+The decision is taken row by row: an inflection can be used in some rows and left empty in others.
+For example, the dominant hand can be relocated in row 1, left untouched (empty cells) in row 2, and relocated again in row 3.
+
+Within an inflection group used in a row, empty columns default to their identity values.
+For example, if you only want to relocate/translate the dominant hand with domhandrelocx/y/z, you can leave the other 6 columns /ax/ay/az/sx/sy/sz empty.
+However, each x/y/z triple must be either fully filled or fully empty: filling, e.g., only domhandrelocx and domhandrelocz is an error.
 
 
 ##  How to edit an MMS

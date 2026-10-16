@@ -30,6 +30,19 @@ DEFAULT_SIGN_TYPE = "signs"
 
 HOLD_KEYWORD = "<HOLD>"
 
+# Maps each inflection group to the prefixes of its x/y/z column triples.
+# A group is applied to a row only if at least one of its triples is filled in that row.
+INFLECTION_GROUPS: Dict[str, List[str]] = {
+    "torso": ["torsoreloc", "torsoreloca"],
+    "head": ["headrot"],
+    "domshoulder": ["domshoulderreloc"],
+    "ndomshoulder": ["ndomshoulderreloc"],
+    "domhandreloc": ["domhandreloc", "domhandreloca", "domhandrelocs"],
+    "domhandrot": ["domhandrot"],
+    "ndomhandreloc": ["ndomhandreloc", "ndomhandreloca", "ndomhandrelocs"],
+    "ndomhandrot": ["ndomhandrot"],
+}
+
 
 class GlossInfo:
     """The content of a (n)domarm cell: either another gloss to play on the arm bones, or a <HOLD>."""
@@ -90,6 +103,18 @@ class MMSLine:
     def __getitem__(self, key):
         return self.line_data[self.column_indices_dict[key]]
 
+    def get(self, key) -> Optional[str]:
+        """Like [key], but returns None if the column is missing or the cell is empty/blank."""
+        if key not in self.column_indices_dict:
+            return None
+        idx = self.column_indices_dict[key]
+        if idx >= len(self.line_data):
+            return None
+        value = self.line_data[idx]
+        if value is None or value.strip() == "":
+            return None
+        return value
+
     def __repr__(self):
         return f"(MMSLine {self.column_indices_dict} for {self.maingloss_info})"
 
@@ -127,20 +152,24 @@ class MMSLine:
 
     def handle_none(self, key) -> Optional[Tuple[float, float, float]]:
         """Retrieves the 3 values of the key + x/y/z.
-          If any of them is None, returns None"""
+          If all of them are empty (or the columns are missing), returns None.
+          If only some of them are empty, raises an exception."""
 
-        x = self[key + "x"]
-        y = self[key + "y"]
-        z = self[key + "z"]
+        x = self.get(key + "x")
+        y = self.get(key + "y")
+        z = self.get(key + "z")
 
-        if not all((x, y, z)):
+        if x is None and y is None and z is None:
             return None
-        
-        assert x is not None
-        assert y is not None
-        assert z is not None
+
+        if x is None or y is None or z is None:
+            raise Exception(f"Row {self.idx}: columns {key}x/y/z must be either all filled or all empty (found x={x}, y={y}, z={z}).")
 
         return float(x), float(y), float(z)
+
+    def has_inflection(self, group: str) -> bool:
+        """True if at least one of the column triples of the given inflection group (see INFLECTION_GROUPS) is filled in this row."""
+        return any(self.handle_none(prefix) is not None for prefix in INFLECTION_GROUPS[group])
 
     def traj_rotation(self, dominance: str) -> Optional[mathutils.Matrix]:
         """Rotation of the hand trajectory.
@@ -298,15 +327,11 @@ class MMSParser:
         for i, column in enumerate(data[0]):
             index_for_column[column] = i
 
-        # Store the availability information
+        # Store the availability information: a group is available if at least one of its column triples is in the header.
+        # Whether it is actually applied is then decided row by row (see MMSLine.has_inflection()).
         inflections_availability = {
-            "domhandreloc": "domhandrelocx" in data[0],
-            "ndomhandreloc": "ndomhandrelocx" in data[0],
-            "domhandrot": "domhandrotx" in data[0],
-            "ndomhandrot": "ndomhandrotx" in data[0],
-            "torso": "torsorelocax" in data[0] and "torsorelocx" in data[0],
-            "head": "headrotx" in data[0],
-            "shoulders": "domshoulderrelocx" in data[0],
+            group: any(prefix + "x" in data[0] for prefix in prefixes)
+            for group, prefixes in INFLECTION_GROUPS.items()
         }
 
         # Iterates on the MMS data
@@ -319,6 +344,10 @@ class MMSParser:
 
             if mms_row.maingloss_info is None:
                 raise Exception("maingloss column can not be empty")
+
+            # Fail early if some inflection triple is only partially filled.
+            for group in INFLECTION_GROUPS:
+                mms_row.has_inflection(group)
 
             if idx == 0:
                 for gloss_info in (mms_row.maingloss_info, mms_row.domarm_info, mms_row.ndomarm_info):

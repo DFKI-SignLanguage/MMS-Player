@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+- Issue #28. Inflections are now selected row by row: leaving the cells of an inflection group empty in a row means that the group is not applied to that row (no IK controllers are created), even if other rows use it. Rows with no inflection at all skip the IK baking.
+- Within an inflection group used in a row, empty x/y/z triples default to identity values (e.g., only `domhandrelocx/y/z` can be filled, without `domhandreloca*`/`domhandrelocs*`). A triple with only some of x/y/z filled is reported as an error.
+- Fix: dominant and non-dominant shoulder relocations (`domshoulderreloc*`, `ndomshoulderreloc*`) can now be specified independently.
+- Renamed and adjusted the Makefile for the MMS-Examples. Check `MMS-Examples/README.md` for details. 
+
 ## [0.5.1] - 2026-10-14
 
 - Major revision of the main MMS realization cycle:
