@@ -18,3 +18,12 @@ The file `gloria-YYMMDD.blend` is the base Blender scene containing the imported
 The "default Blender scene" by "DFKI GmbH" (https://www.dfki.de) are is licensed under CC BY-NC-SA.
 CREATIVE COMMONS ATTRIBUTION-NONCOMMERCIAL-SHAREALIKE 4.0 INTERNATIONAL
 https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+
+## The real-time character
+
+The file `gloria-YYMMDD.glb` is the character of the default Blender scene, exported in GLB format by `tools/export_character_glb.py` for real-time playback (e.g., the 3D preview of the WebGUI).
+
+As derived work of the "Gloria character" and of the "default Blender scene", it is licensed under CC BY-NC-SA.
+CREATIVE COMMONS ATTRIBUTION-NONCOMMERCIAL-SHAREALIKE 4.0 INTERNATIONAL
+https://creativecommons.org/licenses/by-nc-sa/4.0/

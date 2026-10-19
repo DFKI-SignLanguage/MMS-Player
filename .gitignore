@@ -25,3 +25,6 @@ MMS-Examples/*.gif
 
 # AI stuff
 CLAUDE.md
+
+# Node.js dependencies of the tools
+node_modules

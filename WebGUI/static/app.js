@@ -111,6 +111,7 @@ const PREFS_KEY = "mmsweb.prefs";
 const DRAFT_KEY = "mmsweb.draft";
 const prefs = Object.assign({
   expanded: [], hiddenSubs: [], size: String(BOOT.defaults.render_size_pct), panel: false, rightW: 440, zoom: 120,
+  view: "3d",
 }, readStorage(PREFS_KEY));
 
 function readStorage(key) {
@@ -836,53 +837,45 @@ function setupSignBrowser() {
   });
 }
 
-// ---- Previews
+// ---- Previews (real-time 3D)
 let previewToken = 0;
 let previewJobId = null;
 
-function setPreviewStatus(html) {
-  const s = $("#sb-preview-status");
-  s.innerHTML = html;
-  s.classList.toggle("hidden", !html);
-}
-
 async function previewSign(id) {
   const token = ++previewToken;
-  const video = $("#sb-video");
+  const v = await signViewer;
   $("#sb-preview-title").textContent = "Preview: " + id;
-  video.pause();
-  video.removeAttribute("src");
-  video.load();
   if (previewJobId) {
     api("POST", `/api/jobs/${previewJobId}/cancel`).catch(() => {});
     previewJobId = null;
   }
   if (id === HOLD) {
-    setPreviewStatus(`${HOLD} freezes the avatar in the last pose of the previous sign.`);
+    v.clear(`${escapeHtml(HOLD)} freezes the avatar in the last pose of the previous sign.`);
     return;
   }
-  setPreviewStatus("Loading preview…");
+  v.clear("Loading preview…");
   try {
     const r = await api("POST", "/api/glosses/preview", { id });
-    let url = r.url;
+    let url = r.anim_url;
     if (r.status === "pending") {
       previewJobId = r.job.id;
       const job = await pollJob(r.job.id, (j) => {
         if (token !== previewToken) return;
         const pct = j.progress != null ? ` ${Math.round(j.progress * 100)}%` : "";
-        setPreviewStatus(j.status === "queued" ? "Preview queued…" : `Rendering preview…${pct}<br><small>${escapeHtml(j.phase)}</small>`);
+        v.setStatus(j.status === "queued" ? "Preview queued…" : `Computing preview…${pct}<br><small>${escapeHtml(j.phase)}</small>`);
       });
       if (previewJobId === r.job.id) previewJobId = null;
       if (token !== previewToken) return;
       if (job.status !== "done") throw new Error(job.error || job.status);
-      url = job.result.url;
+      url = job.result.anim_url;
     }
+    const data = await api("GET", url);
     if (token !== previewToken) return;
-    setPreviewStatus("");
-    video.src = url;
-    video.play().catch(() => {});
+    await v.load(data, id);
+    if (token !== previewToken) return;
+    v.play();
   } catch (e) {
-    if (token === previewToken) setPreviewStatus("Preview failed:<br>" + escapeHtml(e.message));
+    if (token === previewToken) v.clear("Preview failed:<br>" + escapeHtml(e.message));
   }
 }
 
@@ -1034,23 +1027,51 @@ function updateTimelineSelection(scroll = true) {
 function setupTimeline() {
   $("#timeline").addEventListener("click", (e) => {
     const b = e.target.closest("[data-row]");
-    if (b) selectRow(Number(b.dataset.row), { scroll: true, focus: true });
+    if (!b) return;
+    const row = Number(b.dataset.row);
+    selectRow(row, { scroll: true, focus: true });
+    seekToRow(row);
   });
   const zoom = $("#tl-zoom");
   zoom.value = prefs.zoom;
   zoom.addEventListener("input", () => { prefs.zoom = Number(zoom.value); savePrefs(); renderTimeline(); });
 
-  // Playhead synchronized with the generated video
+  // Playhead synchronized with the generated video, or with the 3D preview
   const video = $("#result-video");
   const tick = () => {
-    const ph = $("#tl-playhead");
-    if (!ph) return;
-    ph.hidden = false;
-    ph.style.left = (TL_X0 + video.currentTime * Number(prefs.zoom)) + "px";
+    if (prefs.view !== "video") return;
+    showPlayhead(video.currentTime);
     if (!video.paused) requestAnimationFrame(tick);
   };
   video.addEventListener("play", () => requestAnimationFrame(tick));
   video.addEventListener("seeked", tick);
+  viewer3d.then((v) => v.onTime((t) => { if (prefs.view === "3d") showPlayhead(t); }));
+}
+
+/** Move the 3D preview and the video to the start of the gloss of the given row (keeping their play/pause state). */
+function seekToRow(row) {
+  const it = timelineItems[row];
+  if (!it) return;
+  // The 3D animation knows the exact realized time of each row; the timeline time is an estimate.
+  viewer3d.then((v) => {
+    if (!v.hasAnimation) return;
+    const t = v.glossStart(row);
+    v.seek(t ?? it.start);
+  });
+  const video = $("#result-video");
+  if (video.currentSrc) {
+    const g = videoGlosses && videoGlosses.glosses.find((s) => s.index === row);
+    const t = g ? (g.start - videoGlosses.frameStart) / videoGlosses.fps : it.start;
+    video.currentTime = Math.min(t, video.duration || t);
+    if (prefs.view === "video") showPlayhead(t);
+  }
+}
+
+function showPlayhead(t) {
+  const ph = $("#tl-playhead");
+  if (!ph) return;
+  ph.hidden = false;
+  ph.style.left = (TL_X0 + t * Number(prefs.zoom)) + "px";
 }
 
 //
@@ -1220,7 +1241,7 @@ function showProgress(job) {
   bar.classList.toggle("indeterminate", job.progress == null && !["error", "cancelled", "done"].includes(job.status));
   fill.style.width = Math.round((job.progress || 0) * 100) + "%";
   let phase = job.phase;
-  if (job.status === "queued") phase = "Waiting for other renders to finish…";
+  if (job.status === "queued") phase = "Waiting for other jobs to finish…";
   else if (job.status === "error") phase = "Failed: " + (job.error || "unknown error");
   else if (job.status === "running" && job.progress != null) phase = `${phase} — ${Math.round(job.progress * 100)}%`;
   $("#progress-phase").textContent = phase;
@@ -1233,54 +1254,119 @@ function showProgress(job) {
   }
 }
 
-async function generate() {
+// The 3D viewers are created by an ES module (viewer3d.js), loaded after this script.
+const viewers3d = new Promise((resolve) => {
+  if (window.MMSViewers) resolve(window.MMSViewers);
+  else window.addEventListener("mmsviewer3d-ready", () => resolve(window.MMSViewers), { once: true });
+});
+const viewer3d = viewers3d.then((v) => v.main);      // full sentences (right panel)
+const signViewer = viewers3d.then((v) => v.sign);    // single signs (sign browser)
+
+function generationBody() {
+  return {
+    name: normalizedName(), rows: exportRows(), extra_columns: state.extraColumns, relative: state.relative,
+    options: { render_size_pct: Number($("#opt-size").value), gloss_panel: $("#opt-panel").checked },
+  };
+}
+
+/** Submit a generation job (video or 3D preview) and follow its progress. Returns the finished job or null. */
+async function runGenerationJob(url, what) {
   const problems = validate();
   applyValidationMarks();
   const errs = problems.filter((p) => p.level === "err");
-  if (errs.length && !confirm(`The MMS has ${errs.length} problem(s) (see the list below the table). The generation will probably fail.\n\nGenerate anyway?`)) return;
+  if (errs.length && !confirm(`The MMS has ${errs.length} problem(s) (see the list below the table). The ${what} will probably fail.\n\nContinue anyway?`)) return null;
 
-  const btn = $("#btn-generate");
-  btn.disabled = true;
+  const buttons = [$("#btn-generate"), $("#btn-preview3d")];
+  buttons.forEach((b) => { b.disabled = true; });
   $("#btn-cancel").hidden = false;
   $("#job-log").textContent = "";
-  const name = normalizedName();
   try {
-    const r = await api("POST", "/api/generate", {
-      name, rows: exportRows(), extra_columns: state.extraColumns, relative: state.relative,
-      options: { render_size_pct: Number($("#opt-size").value), gloss_panel: $("#opt-panel").checked },
-    });
+    const r = await api("POST", url, generationBody());
     currentJobId = r.job.id;
     showProgress(r.job);
     const job = await pollJob(r.job.id, showProgress, () => $("#log-details").open);
-    if (job.status === "done") {
-      showVideo(job.result.url, job.result.name);
-      setStatus(`Video generated in ${Math.round(job.elapsed)} s.`);
-      refreshRenders();
-    } else if (job.status === "error") {
+    if (job.status === "done") return job;
+    if (job.status === "error") {
       const full = await api("GET", `/api/jobs/${job.id}?log=1`);
       showProgress(full);
       $("#log-details").open = true;
-      setStatus("Generation failed: " + (job.error || ""), true);
+      setStatus(`The ${what} failed: ` + (job.error || ""), true);
     } else {
-      setStatus("Generation cancelled.");
+      setStatus(`The ${what} was cancelled.`);
     }
   } catch (e) {
-    setStatus("Generation failed: " + e.message, true);
+    setStatus(`The ${what} failed: ` + e.message, true);
   } finally {
     currentJobId = null;
-    btn.disabled = false;
+    buttons.forEach((b) => { b.disabled = false; });
     $("#btn-cancel").hidden = true;
+  }
+  return null;
+}
+
+async function generate() {
+  const job = await runGenerationJob("/api/generate", "video rendering");
+  if (!job) return;
+  showVideo(job.result.url, job.result.name, job.result.anim_url);
+  setStatus(`Video generated in ${Math.round(job.elapsed)} s.`);
+  refreshRenders();
+}
+
+async function preview3d() {
+  const job = await runGenerationJob("/api/preview3d", "3D preview");
+  if (!job) return;
+  if (await show3D(job.result.anim_url, normalizedName() + " (preview)")) {
+    setStatus(`3D preview computed in ${Math.round(job.elapsed)} s.`);
   }
 }
 
-function showVideo(url, name) {
+/** Load the animation data into the 3D viewer, switch to its tab, and play it. */
+async function show3D(animUrl, label) {
+  try {
+    const [v, data] = await Promise.all([viewer3d, api("GET", animUrl)]);
+    setView("3d");
+    await v.load(data, label);
+    v.play();
+    return true;
+  } catch (e) {
+    setStatus("Can not show the 3D animation: " + e.message, true);
+    return false;
+  }
+}
+
+function setView(name) {
+  prefs.view = name === "video" ? "video" : "3d";
+  savePrefs();
+  document.querySelectorAll(".view-tab").forEach((b) => b.classList.toggle("active", b.dataset.view === prefs.view));
+  document.querySelectorAll(".view-pane").forEach((p) => { p.hidden = p.dataset.view !== prefs.view; });
+  if (prefs.view !== "video") $("#result-video").pause();
+  viewer3d.then((v) => v.setActive(prefs.view === "3d"));
+}
+
+// Realized time ranges of the glosses of the shown video (from its animation data), for exact seeking.
+let videoGlosses = null;
+
+function showVideo(url, name, animUrl) {
+  setView("video");
   const v = $("#result-video");
   v.src = url;
+  videoGlosses = null;
+  if (animUrl) {
+    api("GET", animUrl).then((d) => {
+      if (v.src.endsWith(url)) videoGlosses = { fps: d.fps, frameStart: d.frame_start, glosses: d.glosses || [] };
+    }).catch(() => {});
+  }
   $("#video-placeholder").classList.add("hidden");
   v.play().catch(() => {});
   const cap = $("#video-caption");
   cap.textContent = "";
   if (name) cap.append(name + " — ", el("a", { href: url, download: name, text: "download" }));
+  if (name && animUrl) {
+    cap.append(" — ", el("a", {
+      href: "#", text: "view in 3D", title: "Play the animation of this video on the 3D character",
+      onclick: (e) => { e.preventDefault(); show3D(animUrl, name); },
+    }));
+  }
   document.querySelectorAll("#render-list li").forEach((li) => li.classList.toggle("current", li.dataset.name === name));
 }
 
@@ -1291,8 +1377,14 @@ async function refreshRenders() {
     ul.textContent = "";
     for (const r of data.renders) {
       const when = new Date(r.modified * 1000).toLocaleString();
-      const li = el("li", { dataset: { name: r.name }, title: when, onclick: () => showVideo(r.url, r.name) });
+      const li = el("li", { dataset: { name: r.name }, title: when, onclick: () => showVideo(r.url, r.name, r.anim_url) });
       li.append(el("span", { class: "name", text: r.name }));
+      if (r.anim_url) {
+        li.append(el("a", {
+          href: "#", text: "3D", title: "Play the animation of this video on the 3D character",
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); show3D(r.anim_url, r.name); },
+        }));
+      }
       if (r.mms) {
         li.append(el("a", {
           href: "#", text: "load MMS", title: "Load the MMS used for this video into the editor",
@@ -1304,7 +1396,7 @@ async function refreshRenders() {
               const data = await api("GET", `/api/renders/${encodeURIComponent(r.mms)}/mms`);
               const name = r.mms.replace(/-\d{8}-\d{6}\.mms\.csv$/, MMS_SUFFIX);
               setDocument(data, { name, loadedFrom: null });
-              showVideo(r.url, r.name);
+              showVideo(r.url, r.name, r.anim_url);
             } catch (err) {
               setStatus("Can not load the MMS: " + err.message, true);
             }
@@ -1366,6 +1458,8 @@ function setupToolbar() {
   $("#btn-collapse-all").addEventListener("click", () => { prefs.expanded = []; savePrefs(); renderTable(); });
 
   $("#btn-generate").addEventListener("click", generate);
+  $("#btn-preview3d").addEventListener("click", preview3d);
+  document.querySelectorAll(".view-tab").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
   $("#btn-cancel").addEventListener("click", () => {
     if (currentJobId) api("POST", `/api/jobs/${currentJobId}/cancel`).catch(() => {});
   });
@@ -1411,6 +1505,8 @@ function boot() {
   setupTableEvents();
   setupSignBrowser();
   setupTimeline();
+  setView(prefs.view);
+  signViewer.then((v) => v.setActive(true));
 
   const draft = readStorage(DRAFT_KEY);
   if (draft.rows && draft.rows.length) {

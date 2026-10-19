@@ -21,37 +21,44 @@ _P_RENDER_END = 0.98
 
 
 class RenderProgressTracker:
-    """Interprets the output of the MMS-Player to update the job phase and progress."""
+    """Interprets the output of the MMS-Player to update the job phase and progress.
 
-    def __init__(self, job: Job, expected_gloss_loads: int):
+    If `rendering` is False (animation export only), the build phase spans almost the whole progress bar.
+    """
+
+    def __init__(self, job: Job, expected_gloss_loads: int, rendering: bool = True):
         self.job = job
         self.expected_loads = max(1, expected_gloss_loads)
         self.loads = 0
         self.rendering = False
+        self.build_end = _P_BUILD_END if rendering else _P_RENDER_END - 0.05
 
     def feed(self, line: str) -> None:
         job = self.job
+        build_end = self.build_end
         if line.startswith(MARKER + "frame "):
             cur, start, end = (int(x) for x in line[len(MARKER) + 6:].split()[:3])
             total = max(1, end - start + 1)
             done = min(total, max(0, cur - start))
             self.rendering = True
             job.set_phase(f"Rendering video: frame {cur - start + 1} of {total}",
-                          _P_BUILD_END + (_P_RENDER_END - _P_BUILD_END) * done / total)
+                          build_end + (_P_RENDER_END - build_end) * done / total)
         elif "Realizing MMS from file" in line:
             job.set_phase("Building the animation", _P_STARTUP)
         elif "Loading GLOSS animation data" in line:
             self.loads += 1
             frac = min(1.0, self.loads / self.expected_loads)
             job.set_phase(f"Loading signs ({min(self.loads, self.expected_loads)}/{self.expected_loads})",
-                          _P_STARTUP + (_P_BUILD_END - _P_STARTUP) * 0.6 * frac)
+                          _P_STARTUP + (build_end - _P_STARTUP) * 0.6 * frac)
         elif "Final animation realized" in line:
-            job.set_phase("Applying inflections and preparing the scene", _P_BUILD_END - 0.02)
+            job.set_phase("Applying inflections and preparing the scene", build_end - 0.02)
         elif line.startswith("Rendering done."):
             job.set_phase("Finishing", _P_RENDER_END)
+        elif line.startswith("Exporting preview animation"):
+            job.set_phase("Exporting the 3D animation", max(job.progress or 0.0, build_end))
         elif not self.rendering and ("inflection" in line.lower()) and job.progress is not None:
             # Slowly advance during the inflection stage, which has no explicit step count.
-            job.progress = min(_P_BUILD_END - 0.03, job.progress + 0.002)
+            job.progress = min(build_end - 0.03, job.progress + 0.002)
 
 
 class PlayerRunner:
@@ -62,10 +69,7 @@ class PlayerRunner:
         self.dictionary_dir = dictionary_dir
         self.main_py = player_dir / "main.py"
 
-    def render_mp4(self, job: Job, mms_path: Path, mp4_path: Path, use_relative_time: bool,
-                   render_size_pct: int, expected_gloss_loads: int,
-                   target_fps: Optional[int] = None, gloss_panel: bool = False) -> None:
-
+    def _player_args(self, mms_path: Path, use_relative_time: bool, target_fps: Optional[int]) -> List[str]:
         args = [
             str(self.blender_exe),
             "--background",
@@ -75,25 +79,47 @@ class PlayerRunner:
             "--",
             "--source-mms-file", str(mms_path),
             "--dictionary-dir", str(self.dictionary_dir),
-            "--export-mp4", str(mp4_path),
-            "--render-size-pct", str(int(render_size_pct)),
             "--log-to-console",
         ]
         if use_relative_time:
             args.append("--use-relative-time")
         if target_fps:
             args.extend(["--target-fps", str(int(target_fps))])
-        if gloss_panel:
-            args.append("--gloss-panel")
+        return args
 
+    def _run_player(self, job: Job, args: List[str], tracker: RenderProgressTracker) -> None:
         job.set_phase("Starting Blender", 0.0)
-        tracker = RenderProgressTracker(job, expected_gloss_loads)
         rc = run_process(job, args, cwd=self.player_dir, on_line=tracker.feed)
-
         if rc != 0:
             raise RuntimeError(error_summary(job, f"The MMS-Player exited with code {rc}."))
+
+    def render_mp4(self, job: Job, mms_path: Path, mp4_path: Path, use_relative_time: bool,
+                   render_size_pct: int, expected_gloss_loads: int,
+                   target_fps: Optional[int] = None, gloss_panel: bool = False,
+                   preview_json_path: Optional[Path] = None) -> None:
+        """Render the MMS into a video. Optionally, also export the animation for the 3D preview."""
+
+        args = self._player_args(mms_path, use_relative_time, target_fps)
+        args.extend(["--export-mp4", str(mp4_path), "--render-size-pct", str(int(render_size_pct))])
+        if gloss_panel:
+            args.append("--gloss-panel")
+        if preview_json_path is not None:
+            args.extend(["--export-preview-json", str(preview_json_path)])
+
+        self._run_player(job, args, RenderProgressTracker(job, expected_gloss_loads))
         if not mp4_path.exists():
             raise RuntimeError(error_summary(job, "The MMS-Player did not produce the video."))
+
+    def export_preview(self, job: Job, mms_path: Path, json_path: Path, use_relative_time: bool,
+                       expected_gloss_loads: int, target_fps: Optional[int] = None) -> None:
+        """Realize the MMS and export only the animation data for the real-time 3D preview (no rendering)."""
+
+        args = self._player_args(mms_path, use_relative_time, target_fps)
+        args.extend(["--export-preview-json", str(json_path)])
+
+        self._run_player(job, args, RenderProgressTracker(job, expected_gloss_loads, rendering=False))
+        if not json_path.exists():
+            raise RuntimeError(error_summary(job, "The MMS-Player did not produce the animation data."))
 
     def gloss_durations(self, job: Job, items: List[dict], on_result: Callable[[dict], None]) -> None:
         """items: list of {id, name, path}. Calls on_result({id, secs} | {id, error}) for each item."""

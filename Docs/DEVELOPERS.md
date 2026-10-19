@@ -103,7 +103,24 @@ assets/                         - binary files needed for the final blender scen
   avasag_avatar_casual.glb      - is our target character, currently called Gloria.
   controller_config.json        - described what inflection strategy must be used for each target bone
   gloria-YYMMDD.blend           - default blender scene, containing an imported version of the GLB. It contains some default rendering values and lights. Its timeline will be filled by the MMS animation.
+  gloria-YYMMDD.glb             - the character of the default blender scene (same bone names used by the MMS-Player), for real-time playback of `--export-preview-json` animations (e.g., in the WebGUI 3D preview).
   ignorelist.json               - list of bones that must be deleted after loading an armature
+```
+
+Whenever the default blender scene is updated, regenerate its GLB version with:
+
+```
+blender --background --python tools/export_character_glb.py -- --out assets/gloria-YYMMDD.glb
+```
+
+Then, update `CHARACTER_GLB_PATH` in `WebGUI/mmsweb/app.py` if the file name changed.
+
+To check how the new character fits the "signing space" framed by the Top/Left/Right views of the WebGUI 3D preview, regenerate the reference screenshots (front, side, and 45-degree views) into `Docs/Pics/signing-space/`:
+
+```
+cd tools/signing-space-screenshots
+npm install && npx playwright install chromium   # only the first time
+node render.mjs [--out DIR] [--glb FILE]
 ```
 
 ## Frames and duration of animations

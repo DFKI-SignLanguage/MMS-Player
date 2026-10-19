@@ -30,7 +30,6 @@ def main():
     parser.add_argument("--host", default="127.0.0.1", help="Use 0.0.0.0 to accept connections from other machines.")
     parser.add_argument("--port", type=int, default=5050)
     parser.add_argument("--render-workers", type=int, default=1, help="Number of videos rendered in parallel.")
-    parser.add_argument("--preview-size-pct", type=int, default=25, help="Render size of the sign previews (%%).")
     parser.add_argument("--render-size-pct", type=int, default=50, help="Default render size of the generated videos (%%).")
     parser.add_argument("--target-fps", type=int, default=None,
                         help=f"Default FPS of the generated videos (default: 30). "
@@ -63,7 +62,6 @@ def main():
         project_dir=Path(args.project_dir).expanduser().resolve(),
         blender_exe=Path(args.blender_exe).expanduser(),
         render_workers=max(1, args.render_workers),
-        preview_size_pct=args.preview_size_pct,
         default_render_size_pct=args.render_size_pct,
         target_fps=int(options["target_fps"]),
         font_size_px=float(options["font_size_px"]),
