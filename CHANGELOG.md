@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - New option `--export-preview-json` to export the realized animation (local bone transforms and facial blendshapes for every frame) for real-time playback, without rendering a video. See `player/preview_exporter.py`.
 - New script `tools/export_character_glb.py` to export the character of the template scene into `assets/gloria-260813.glb`, for real-time playback.
 - WebGUI: real-time 3D preview of the animation with Three.js (*Preview 3D* button and *3D preview* tab). Rendering the video is needed only for the final result. Videos rendered from the WebGUI can also be viewed in 3D.
+- WebGUI: the single-sign dictionary preview is also in real-time 3D, with the same controls of the main preview. Videos are rendered only for full sentences. The `--preview-size-pct` server option was removed.
 - Fix: the facial animation was not applied to the right eye (`Eye_R`) mesh.
 
 ## [0.5.1] - 2026-10-14

@@ -28,7 +28,7 @@ On the left side, we have the dictionary exploration panel.
 
 It lists all the signs present in the selected dictionary.
 Users can filter the visible signs by typing part of the name.
-At the bottom, it is possible to see a preview of the selected sign.
+At the bottom, it is possible to see a preview of the selected sign, played in real time on the 3D character (the same used for the full sentence preview). Videos are rendered only for full sentences.
 
 ### MMS editing
 
@@ -43,7 +43,7 @@ The columns of the MMS are divided into sections:
 
 * The first section is the sign sequence, including the columns `maingloss`, `domarm`, and `ndomarm`.
   * While typing the name of a sign in a cell, the dictionary panel on the left lists the candidate signs, filtered by the typed characters.
-  * Clicking a sign in this list shows a preview video of the single sign from the dictionary.
+  * Clicking a sign in this list shows a real-time 3D preview of the single sign from the dictionary.
   * Double-clicking a sign inserts it into the edited cell.
 * The second section is the timing information: `framestart`, `frameend`, `transition`, and `duration` columns.
   * A checkbox lets the user choose between absolute timing (`framestart`/`frameend`) and relative timing (`transition`/`duration`).

@@ -837,53 +837,45 @@ function setupSignBrowser() {
   });
 }
 
-// ---- Previews
+// ---- Previews (real-time 3D)
 let previewToken = 0;
 let previewJobId = null;
 
-function setPreviewStatus(html) {
-  const s = $("#sb-preview-status");
-  s.innerHTML = html;
-  s.classList.toggle("hidden", !html);
-}
-
 async function previewSign(id) {
   const token = ++previewToken;
-  const video = $("#sb-video");
+  const v = await signViewer;
   $("#sb-preview-title").textContent = "Preview: " + id;
-  video.pause();
-  video.removeAttribute("src");
-  video.load();
   if (previewJobId) {
     api("POST", `/api/jobs/${previewJobId}/cancel`).catch(() => {});
     previewJobId = null;
   }
   if (id === HOLD) {
-    setPreviewStatus(`${HOLD} freezes the avatar in the last pose of the previous sign.`);
+    v.clear(`${escapeHtml(HOLD)} freezes the avatar in the last pose of the previous sign.`);
     return;
   }
-  setPreviewStatus("Loading preview…");
+  v.clear("Loading preview…");
   try {
     const r = await api("POST", "/api/glosses/preview", { id });
-    let url = r.url;
+    let url = r.anim_url;
     if (r.status === "pending") {
       previewJobId = r.job.id;
       const job = await pollJob(r.job.id, (j) => {
         if (token !== previewToken) return;
         const pct = j.progress != null ? ` ${Math.round(j.progress * 100)}%` : "";
-        setPreviewStatus(j.status === "queued" ? "Preview queued…" : `Rendering preview…${pct}<br><small>${escapeHtml(j.phase)}</small>`);
+        v.setStatus(j.status === "queued" ? "Preview queued…" : `Computing preview…${pct}<br><small>${escapeHtml(j.phase)}</small>`);
       });
       if (previewJobId === r.job.id) previewJobId = null;
       if (token !== previewToken) return;
       if (job.status !== "done") throw new Error(job.error || job.status);
-      url = job.result.url;
+      url = job.result.anim_url;
     }
+    const data = await api("GET", url);
     if (token !== previewToken) return;
-    setPreviewStatus("");
-    video.src = url;
-    video.play().catch(() => {});
+    await v.load(data, id);
+    if (token !== previewToken) return;
+    v.play();
   } catch (e) {
-    if (token === previewToken) setPreviewStatus("Preview failed:<br>" + escapeHtml(e.message));
+    if (token === previewToken) v.clear("Preview failed:<br>" + escapeHtml(e.message));
   }
 }
 
@@ -1262,11 +1254,13 @@ function showProgress(job) {
   }
 }
 
-// The 3D viewer is an ES module (viewer3d.js), loaded after this script.
-const viewer3d = new Promise((resolve) => {
-  if (window.MMSViewer3D) resolve(window.MMSViewer3D);
-  else window.addEventListener("mmsviewer3d-ready", () => resolve(window.MMSViewer3D), { once: true });
+// The 3D viewers are created by an ES module (viewer3d.js), loaded after this script.
+const viewers3d = new Promise((resolve) => {
+  if (window.MMSViewers) resolve(window.MMSViewers);
+  else window.addEventListener("mmsviewer3d-ready", () => resolve(window.MMSViewers), { once: true });
 });
+const viewer3d = viewers3d.then((v) => v.main);      // full sentences (right panel)
+const signViewer = viewers3d.then((v) => v.sign);    // single signs (sign browser)
 
 function generationBody() {
   return {
@@ -1512,6 +1506,7 @@ function boot() {
   setupSignBrowser();
   setupTimeline();
   setView(prefs.view);
+  signViewer.then((v) => v.setActive(true));
 
   const draft = readStorage(DRAFT_KEY);
   if (draft.rows && draft.rows.length) {

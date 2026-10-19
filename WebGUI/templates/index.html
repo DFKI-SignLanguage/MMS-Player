@@ -8,6 +8,40 @@
 </head>
 <body>
 
+{#- A real-time 3D viewer (see static/viewer3d.js), with its playback and point of view controls. -#}
+{% macro viewer3d(name, box_class, idle_html) %}
+<div class="v3d" data-viewer="{{ name }}">
+  <div class="v3d-canvas-box {{ box_class }}" tabindex="0">
+    <div class="v3d-gloss"></div>
+    <div class="v3d-status overlay-status"><span>{{ idle_html|safe }}</span></div>
+  </div>
+  <div class="v3d-controls">
+    <button class="v3d-play" title="Play/pause (Space)">▶</button>
+    <input class="v3d-scrub" type="range" min="0" max="0" step="0.001" value="0">
+    <span class="v3d-time muted"></span>
+  </div>
+  <div class="v3d-controls">
+    <label title="Playback speed">Speed
+      <select class="v3d-speed">
+        <option value="0.25">¼×</option>
+        <option value="0.5">½×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+      </select>
+    </label>
+    <label title="Loop the playback"><input type="checkbox" class="v3d-loop" checked> Loop</label>
+  </div>
+  <div class="v3d-controls">
+    <span class="tool-label">3D view</span>
+    <button class="v3d-reset" title="Back to the rendering camera point of view">Reset</button>
+    <button class="v3d-view-top" title="Look at the character from above">Top</button>
+    <button class="v3d-view-left" title="Look at the character from her left side">Left</button>
+    <button class="v3d-view-right" title="Look at the character from her right side">Right</button>
+  </div>
+  <div class="v3d-caption muted"></div>
+</div>
+{% endmacro %}
+
 <header class="topbar">
   <div class="brand">MMS-Player <span>Editor</span></div>
   <div class="file-controls">
@@ -56,10 +90,7 @@
         <ul id="sb-list" tabindex="-1"></ul>
         <div id="sb-preview">
           <div id="sb-preview-title" class="panel-title">Preview</div>
-          <div class="sb-video-box">
-            <video id="sb-video" muted loop playsinline autoplay controls></video>
-            <div id="sb-preview-status" class="overlay-status">Click a sign to preview it.<br>Double click to insert it.</div>
-          </div>
+          {{ viewer3d("sign", "sb-video-box", "Click a sign to preview it.<br>Double click to insert it.") }}
         </div>
       </aside>
 
@@ -118,34 +149,7 @@
     </div>
 
     <div class="view-pane" data-view="3d">
-      <div id="v3d-canvas-box" class="video-box" tabindex="0">
-        <div id="v3d-gloss" class="v3d-gloss"></div>
-        <div id="v3d-status" class="overlay-status"><span>Press <b>Preview 3D</b> to animate the character.</span></div>
-      </div>
-      <div class="v3d-controls">
-        <button id="v3d-play" title="Play/pause (Space)">▶</button>
-        <input id="v3d-scrub" type="range" min="0" max="0" step="0.001" value="0">
-        <span id="v3d-time" class="muted"></span>
-      </div>
-      <div class="v3d-controls">
-        <label title="Playback speed">Speed
-          <select id="v3d-speed">
-            <option value="0.25">¼×</option>
-            <option value="0.5">½×</option>
-            <option value="1" selected>1×</option>
-            <option value="2">2×</option>
-          </select>
-        </label>
-        <label title="Loop the playback"><input type="checkbox" id="v3d-loop" checked> Loop</label>
-      </div>
-      <div class="v3d-controls">
-        <span class="tool-label">3D view</span>
-        <button id="v3d-reset" title="Back to the rendering camera point of view">Reset</button>
-        <button id="v3d-view-top" title="Look at the character from above">Top</button>
-        <button id="v3d-view-left" title="Look at the character from her left side">Left</button>
-        <button id="v3d-view-right" title="Look at the character from her right side">Right</button>
-      </div>
-      <div id="v3d-caption" class="muted"></div>
+      {{ viewer3d("main", "video-box", "Press <b>Preview 3D</b> to animate the character.") }}
     </div>
 
     <div class="view-pane" data-view="video">

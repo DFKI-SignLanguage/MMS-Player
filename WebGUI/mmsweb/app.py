@@ -35,7 +35,6 @@ class ServerConfig:
     project_dir: Path
     blender_exe: Path
     render_workers: int = 1
-    preview_size_pct: int = 25
     default_render_size_pct: int = 50
     target_fps: int = 30
     font_size_px: float = 13
@@ -76,7 +75,7 @@ def create_app(cfg: ServerConfig) -> Flask:
     app.json.sort_keys = False
 
     cache_dir = cfg.project_dir / ".mmsweb-cache"
-    previews_dir = cache_dir / "previews"
+    previews_dir = cache_dir / "previews3d"  # single-sign 3D animations
     anims_dir = cache_dir / "anims"
     renders_dir = cfg.project_dir / "renders"
     examples_dir = cfg.player_dir / "MMS-examples"
@@ -94,11 +93,11 @@ def create_app(cfg: ServerConfig) -> Flask:
 
     def preview_path(gloss_id: str) -> Path:
         cls, name = split_gloss_id(gloss_id)
-        return previews_dir / safe_file_stem(cls) / (safe_file_stem(name) + ".mp4")
+        return previews_dir / safe_file_stem(cls) / (safe_file_stem(name) + ANIM_SUFFIX)
 
     def preview_url(gloss_id: str) -> str:
         p = preview_path(gloss_id)
-        return f"/media/previews/{p.parent.name}/{p.name}?v={int(p.stat().st_mtime)}"
+        return f"/media/previews3d/{p.parent.name}/{p.name}?v={int(p.stat().st_mtime)}"
 
     def bad_request(msg: str, code: int = 400):
         return jsonify({"error": msg}), code
@@ -165,35 +164,35 @@ def create_app(cfg: ServerConfig) -> Flask:
 
     @app.route("/api/glosses/preview", methods=["POST"])
     def api_gloss_preview():
-        """Video preview of a single sign. Returns its URL if available, otherwise starts a job to render it."""
+        """3D preview of a single sign. Returns the URL of its animation data ('anim_url') if available,
+        otherwise starts a job to compute it (no video rendering)."""
         gloss_id = str((request.get_json(silent=True) or {}).get("id", "")).strip()
         if gloss_id not in dictionary:
             return bad_request(f"Sign '{gloss_id}' is not in the dictionary.", 404)
 
         out = preview_path(gloss_id)
         if out.exists():
-            return jsonify({"status": "ready", "url": preview_url(gloss_id)})
+            return jsonify({"status": "ready", "anim_url": preview_url(gloss_id)})
 
         def work(job: Job):
             out.parent.mkdir(parents=True, exist_ok=True)
-            tmp_mp4 = out.with_name(f".{out.stem}-{job.id}.mp4")
+            tmp_json = out.with_name(f".{out.name}-{job.id}.json")
             tmp_mms = out.with_name(f".{out.stem}-{job.id}{MMS_SUFFIX}")
             try:
                 write_mms_file(tmp_mms, [{"maingloss": gloss_id, "framestart": "0", "frameend": "0",
                                           "duration": "100%", "transition": "0.3"}], [])
-                runner.render_mp4(job, tmp_mms, tmp_mp4, use_relative_time=True,
-                                  render_size_pct=cfg.preview_size_pct, expected_gloss_loads=1,
-                                  target_fps=cfg.target_fps)
-                tmp_mp4.replace(out)
-                job.result = {"url": preview_url(gloss_id)}
+                runner.export_preview(job, tmp_mms, tmp_json, use_relative_time=True, expected_gloss_loads=1,
+                                      target_fps=cfg.target_fps)
+                tmp_json.replace(out)
+                job.result = {"anim_url": preview_url(gloss_id)}
             finally:
-                for p in (tmp_mp4, tmp_mms):
+                for p in (tmp_json, tmp_mms):
                     p.unlink(missing_ok=True)
 
         job = aux_queue.submit(Job("preview", f"Preview of {gloss_id}", key=f"preview:{gloss_id}"), work)
         return jsonify({"status": "pending", "job": job.to_dict()})
 
-    @app.route("/media/previews/<cls>/<filename>")
+    @app.route("/media/previews3d/<cls>/<filename>")
     def media_preview(cls: str, filename: str):
         return send_from_directory(previews_dir / safe_file_stem(cls), filename, max_age=3600)
 
