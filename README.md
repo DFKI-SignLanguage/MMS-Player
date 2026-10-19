@@ -115,6 +115,24 @@ Optionally, for debugging, install:
 * The bpy namespace
   * `pip install bpy==4.2.23`
 
+## WebGUI
+
+<img src="Docs/Pics/MMS-Player-WebGUI.jpg" width="66%" alt="A screenshot of the MMS-Player web interface." />
+
+
+Since October 2026, we have a web interface allowing to:
+
+* Explore the signs of a dictionary
+* Preview signs with a real-time 3D animation
+* Edit MMS instances (better than you would do with a spreadsheet)
+* Monitor gloss sequences on an interactive timeline
+* Preview the gloss sequence as real-time 3D animation (very fast interaction cycle)
+* Render the final MP4 of your gloss sequence.
+
+The GUI allows for a quicker interative correction-preview cycle thanks to real-time 3D rendering of the Gloria character.
+
+<img src="Docs/Pics/signing-space/signing-space-all.png" width="100%" alt="The real-time rendering of the Gloria and its signing space." />
+
 
 ### Command line invokation
 
