@@ -1035,7 +1035,10 @@ function updateTimelineSelection(scroll = true) {
 function setupTimeline() {
   $("#timeline").addEventListener("click", (e) => {
     const b = e.target.closest("[data-row]");
-    if (b) selectRow(Number(b.dataset.row), { scroll: true, focus: true });
+    if (!b) return;
+    const row = Number(b.dataset.row);
+    selectRow(row, { scroll: true, focus: true });
+    seekToRow(row);
   });
   const zoom = $("#tl-zoom");
   zoom.value = prefs.zoom;
@@ -1051,6 +1054,25 @@ function setupTimeline() {
   video.addEventListener("play", () => requestAnimationFrame(tick));
   video.addEventListener("seeked", tick);
   viewer3d.then((v) => v.onTime((t) => { if (prefs.view === "3d") showPlayhead(t); }));
+}
+
+/** Move the 3D preview and the video to the start of the gloss of the given row (keeping their play/pause state). */
+function seekToRow(row) {
+  const it = timelineItems[row];
+  if (!it) return;
+  // The 3D animation knows the exact realized time of each row; the timeline time is an estimate.
+  viewer3d.then((v) => {
+    if (!v.hasAnimation) return;
+    const t = v.glossStart(row);
+    v.seek(t ?? it.start);
+  });
+  const video = $("#result-video");
+  if (video.currentSrc) {
+    const g = videoGlosses && videoGlosses.glosses.find((s) => s.index === row);
+    const t = g ? (g.start - videoGlosses.frameStart) / videoGlosses.fps : it.start;
+    video.currentTime = Math.min(t, video.duration || t);
+    if (prefs.view === "video") showPlayhead(t);
+  }
 }
 
 function showPlayhead(t) {
@@ -1327,10 +1349,19 @@ function setView(name) {
   viewer3d.then((v) => v.setActive(prefs.view === "3d"));
 }
 
+// Realized time ranges of the glosses of the shown video (from its animation data), for exact seeking.
+let videoGlosses = null;
+
 function showVideo(url, name, animUrl) {
   setView("video");
   const v = $("#result-video");
   v.src = url;
+  videoGlosses = null;
+  if (animUrl) {
+    api("GET", animUrl).then((d) => {
+      if (v.src.endsWith(url)) videoGlosses = { fps: d.fps, frameStart: d.frame_start, glosses: d.glosses || [] };
+    }).catch(() => {});
+  }
   $("#video-placeholder").classList.add("hidden");
   v.play().catch(() => {});
   const cap = $("#video-caption");

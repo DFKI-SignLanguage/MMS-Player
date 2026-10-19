@@ -380,6 +380,12 @@ const api = {
   pause() { play.playing = false; updateControls(); },
   toggle() { if (play.playing) api.pause(); else api.play(); },
   seek(t) { setTime(t); },
+  /** Start time (s) of the given MMS row in the loaded animation, or null if not known. */
+  glossStart(row) {
+    const a = play.anim;
+    const g = a && a.glosses.find((s) => s.index === row);
+    return g ? (g.start - a.frameStart) / a.fps : null;
+  },
   /** The 3D view is visible or not: no rendering while hidden. */
   setActive(active) {
     view.active = active;
