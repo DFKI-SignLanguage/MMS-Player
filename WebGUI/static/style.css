@@ -210,6 +210,10 @@ select, input[type=text], input[type=search] {
 .progress-bar.error .progress-fill { background: var(--error); width: 100% !important; }
 @keyframes indet { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
 .progress-text { display: flex; justify-content: space-between; gap: 8px; font-size: 0.923rem; }
+/* The row keeps the height of the Cancel button, so that showing it doesn't move the content below */
+.progress-row { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.progress-row .progress-bar { flex: 1; }
+#btn-cancel { padding: 1px 8px; }
 #progress.error .progress-text { color: var(--error); }
 #log-details summary { cursor: pointer; color: var(--muted); font-size: 0.923rem; }
 #job-log {
@@ -263,5 +267,6 @@ select, input[type=text], input[type=search] {
   box-shadow: 0 6px 20px rgba(0,0,0,.15); padding: 4px 0; min-width: 220px;
 }
 #context-menu div { padding: 5px 14px; cursor: pointer; }
-#context-menu div:hover { background: var(--accent-soft); }
+#context-menu div:hover:not(.disabled) { background: var(--accent-soft); }
+#context-menu div.disabled { color: var(--muted); cursor: default; }
 #context-menu hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }

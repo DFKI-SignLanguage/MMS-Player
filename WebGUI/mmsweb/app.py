@@ -72,6 +72,8 @@ class DurationCache:
 def create_app(cfg: ServerConfig) -> Flask:
 
     app = Flask(__name__, template_folder=str(WEBGUI_DIR / "templates"), static_folder=str(WEBGUI_DIR / "static"))
+    # Pick up changes of the templates without restarting the server
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
     app.json.sort_keys = False
 
     cache_dir = cfg.project_dir / ".mmsweb-cache"

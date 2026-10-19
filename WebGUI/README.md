@@ -33,6 +33,7 @@ Then open <http://localhost:5050/>.
 | `--render-workers` | 1 | Number of videos rendered in parallel |
 | `--render-size-pct` | 50 | Default size of the generated videos (percentage of 1080×1920) |
 | `--target-fps` | 30 | FPS of the generated videos and previews. Saved in `server_options.local.json` and reused at the next start |
+| `--reload` | off | For development: restart the server when a Python file changes. Running jobs are lost at every restart. Changes to the templates and static files never need a restart: reload the page. |
 
 Persistent options are stored in `WebGUI/server_options.local.json` (git-ignored). The file is created at the first start. Edit it directly or pass the option on the command line, which also updates the file.
 
@@ -61,7 +62,7 @@ my-mms-project/
 * **Rows.** Use the toolbar or the right-click menu to insert, duplicate, remove, and move rows. You can also drag a row by its number. Keyboard: `Ctrl/Cmd+Enter` inserts a row, `Alt+↑/↓` moves the row, and `Enter`/`↑`/`↓` move between rows.
 * **Sign sequence** (`maingloss`, `domarm`, `ndomarm`). While you type in a gloss cell, the *Signs* panel lists the matching dictionary signs. Click a sign to preview it in real time on the 3D character, with the same controls as the main 3D preview. The animation of a sign is computed on first request, which takes a few seconds, and is then cached. Double click a sign, or press `↓` and then `Enter`, to insert it into the edited cell. `<HOLD>` is always available.
 * **Timing.** The *Relative timing* checkbox chooses between `transition`/`duration` (relative) and `framestart`/`frameend` (absolute). The unused pair is greyed out. A file's mode is guessed when you load it.
-* **Inflections.** Each body part is a subsection: Torso, Head, Shoulders, Dominant hand, and Non-dominant hand. You can hide a body part with the toolbar checkboxes. The x/y/z components of a parameter are collapsed into one cell (`x, y, z`) by default. Use ▸/▾ in the header, or *Expand/Collapse x/y/z*, to switch.
+* **Inflections.** Each body part is a subsection: Torso, Head, Shoulders, Dominant hand, and Non-dominant hand. You can hide a body part with the toolbar checkboxes. The x/y/z components of a parameter are collapsed into one cell (`x, y, z`) by default. Use ▸/▾ in the header, or *Expand/Collapse x/y/z* in the toolbar's *Columns* menu, to switch.
   * Empty cells are allowed: an inflection whose cells are all empty is skipped for that row, and its empty x/y/z triples default to identity values. Only the x, y and z of a single parameter must be either all filled or all empty.
   * When you type a value into an empty x/y/z triple, its other components are filled with identity values (0, or 1 for scales).
   * Right-click a cell to fill an inflection group with identity values, clear it, or copy it to all rows.
@@ -75,7 +76,7 @@ my-mms-project/
 
 Previous renders are listed below. *load MMS* puts the MMS that produced a render back into the editor, and *3D* plays its animation on the 3D character.
 
-**Files.** *Open…* loads an MMS from the project folder or from the player's `MMS-examples` (examples are read-only, so saving one creates a copy). The other file buttons are *Save* (`Ctrl/Cmd+S`), *Download*, and *Import*. The browser keeps a draft of the current table, so reloading the page doesn't lose your work.
+**Files.** *Open…* loads an MMS from the project folder or from the player's `MMS-examples` (examples are read-only, so saving one creates a copy). The other file buttons are *Save* (`Ctrl/Cmd+S`), *Download*, and *Import*. Columns that the MMS-Player doesn't use, for example unused or renamed columns of old MMS files, are kept and shown under *Other* in the table. *Remove unknown columns*, in the toolbar's *Columns* menu, deletes them, after asking for confirmation. The browser keeps a draft of the current table, so reloading the page doesn't lose your work.
 
 ## Architecture
 

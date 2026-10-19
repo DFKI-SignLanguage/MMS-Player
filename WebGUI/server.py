@@ -35,6 +35,9 @@ def main():
                         help=f"Default FPS of the generated videos (default: 30). "
                              f"The value is saved in {SERVER_OPTIONS_PATH.name} and reused at the next start.")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--reload", action="store_true",
+                        help="Restart the server when a Python file changes (for development). "
+                             "Running jobs are lost at every restart.")
     args = parser.parse_args()
 
     def fail(msg):
@@ -81,7 +84,7 @@ def main():
     print(f"Blender:    {cfg.blender_exe}")
     print(f"Target FPS: {cfg.target_fps} (from {SERVER_OPTIONS_PATH.name})")
     print(f"Open http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}/")
-    app.run(host=args.host, port=args.port, debug=args.debug, threaded=True, use_reloader=False)
+    app.run(host=args.host, port=args.port, debug=args.debug, threaded=True, use_reloader=args.reload)
 
 
 if __name__ == "__main__":
