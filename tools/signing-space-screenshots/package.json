@@ -1,0 +1,12 @@
+{
+  "name": "signing-space-screenshots",
+  "private": true,
+  "description": "Screenshots of the real-time character with the signing space of the WebGUI 3D preview.",
+  "type": "module",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.47.2"
+  }
+}

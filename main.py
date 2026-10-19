@@ -125,6 +125,14 @@ def add_options(arg_parser: argparse.ArgumentParser):
     )
 
     arg_parser.add_argument(
+        "--export-preview-json",
+        type=str,
+        help="Export the sampled bone transforms and facial shape keys to a JSON file, ready for real-time playback"
+             " on the glTF character (see tools/export_character_glb.py). Rendering is not needed.",
+        required=False,
+    )
+
+    arg_parser.add_argument(
         "--res-x",
         type=int,
         required=False,
@@ -202,6 +210,7 @@ def post_bake(
         bvh_path: Optional[str] = None,
         fbx_path: Optional[str] = None,
         anim_json_path: Optional[str] = None,
+        preview_json_path: Optional[str] = None,
         blend_path: Optional[str] = None,
         render_size_pct: int = 100,
         gloss_panel: bool = False,
@@ -214,6 +223,8 @@ def post_bake(
     :param mp4_path: Export path to render the final animation.
     :param bvh_path: Export path to store skeletal animation.
     :param fbx_path: Export path to store 3D animated asset
+    :param anim_json_path: Export path for the animation in the legacy custom JSON format.
+    :param preview_json_path: Export path for the animation in the real-time preview JSON format.
     :param blend_path: Export path to save the 3d scene
     :param render_size_pct: Percentage of the final render.
     :param render_size_x: Width of final render.
@@ -336,6 +347,20 @@ def post_bake(
         from player.anim_exporter import export_animation
         print(f"Exporting animation to JSON file '{anim_json_path}' ...")
         export_animation(armature_obj=armature, bones_list=ANIMATED_BONE_LIST, out_json_path=Path(anim_json_path))
+
+    # Export the animation for the real-time 3D preview
+    if preview_json_path:
+        from player.preview_exporter import export_preview_animation
+        print(f"Exporting preview animation to JSON file '{preview_json_path}' ...")
+        export_preview_animation(
+            armature_obj=armature,
+            shapekeys_mesh_obj=bpy.data.objects[TARGET_FACE_MESH_NAME],
+            frame_start=int(frame_start),
+            frame_end=int(frame_end),
+            out_json_path=Path(preview_json_path),
+            gloss_timeline=gloss_timeline,
+        )
+        print("Preview export done.")
 
     bpy.context.scene.frame_set(1)
     armature.hide_set(True)
@@ -711,7 +736,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
     target_armature = bpy.data.objects[TARGET_ARMATURE_NAME]
     target_face_mesh = bpy.data.objects[TARGET_FACE_MESH_NAME]
     target_leye_mesh = bpy.data.objects[TARGET_LEYE_MESH_NAME]
-    target_reye_mesh = bpy.data.objects[TARGET_LEYE_MESH_NAME]
+    target_reye_mesh = bpy.data.objects[TARGET_REYE_MESH_NAME]
 
     target_meshes = [target_face_mesh, target_leye_mesh, target_reye_mesh]
 
@@ -830,6 +855,7 @@ def execute_mms_realization_pipeline(arguments: argparse.Namespace) -> None:
         bvh_path=arguments.export_bvh,
         fbx_path=arguments.export_fbx,
         anim_json_path=arguments.export_anim_json,
+        preview_json_path=arguments.export_preview_json,
         blend_path=arguments.export_blend,
         render_size_pct=arguments.render_size_pct,
         render_size_x=arguments.res_x,

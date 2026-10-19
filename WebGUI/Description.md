@@ -15,6 +15,8 @@ When started, the server must be given the following locations:
 
 The server is responsible for generating the HTML code of the interface, as well as invoking the local instance of the MMS-Player in order to generate the MP4 videos that are then shown in the web interface.
 
+To save rendering time, the server can also invoke the MMS-Player to export only the animation data (a JSON file), without rendering any video. The JSON animation data is sent to the client, which plays it in real time on a 3D character.
+
 
 ## Client GUI
 
@@ -55,11 +57,14 @@ The timeline flows horizontally to the right, and the time range of the selected
 
 ### Sign language animation view
 
-On the right side lies the video of the generated sign language utterance.
+On the right side lies the generated sign language utterance, shown either as real-time 3D preview or as rendered video.
+A selection tab switches between the two views.
 
-A button named "Generate" invokes the MMS-Player on the server and shows the resulting video on the right side of the interface.
-While the video is generated, the user is informed of the progress of the task.
-Previous renders are listed below the video.
+* A button named "Preview 3D" invokes the MMS-Player on the server to compute only the animation data. The data is played back in real time on the 3D character, loaded in GLB format (exported from the template Blender scene of the MMS-Player) and shown with the Three.js library. The user can orbit and zoom the camera.
+* A button named "Render video" invokes the MMS-Player on the server to render the final video, shown in the video view. Users render the video only once they are satisfied with the 3D preview.
+
+While the animation or the video is generated, the user is informed of the progress of the task.
+Previous renders are listed below the views. Their animation data is also exported, so they can be seen in the 3D view too.
 
 
 ## Tech info

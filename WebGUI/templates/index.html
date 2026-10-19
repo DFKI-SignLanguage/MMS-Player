@@ -11,6 +11,7 @@
 <header class="topbar">
   <div class="brand">MMS-Player <span>Editor</span></div>
   <div class="file-controls">
+    <label class="button" title="Load an MMS CSV file from your computer">Import<input id="inp-import" type="file" accept=".csv" hidden></label>
     <button id="btn-new" title="Start a new MMS">New</button>
     <select id="sel-open" title="Open an MMS from the project folder or from the examples">
       <option value="">Open…</option>
@@ -18,7 +19,6 @@
     <input id="inp-name" type="text" spellcheck="false" title="File name in the project folder">
     <button id="btn-save" title="Save into the project folder (Ctrl+S)">Save</button>
     <button id="btn-download" title="Download the MMS as CSV">Download</button>
-    <label class="button" title="Load an MMS CSV file from your computer">Import<input id="inp-import" type="file" accept=".csv" hidden></label>
     <span id="dirty-flag" class="dirty-flag"></span>
   </div>
   <div class="status" id="status"></div>
@@ -92,7 +92,8 @@
 
   <section id="right">
     <div class="gen-controls">
-      <button id="btn-generate" class="primary" title="Render the MMS into a video">Generate</button>
+      <button id="btn-preview3d" class="primary" title="Compute the animation and play it on the 3D character (fast, no video rendering)">Preview 3D</button>
+      <button id="btn-generate" title="Render the MMS into a video (slow)">Render video</button>
       <button id="btn-cancel" hidden>Cancel</button>
       <label title="Render size, as percentage of 1080×1920">Size
         <select id="opt-size">
@@ -111,11 +112,49 @@
       <details id="log-details"><summary>Log</summary><pre id="job-log"></pre></details>
     </div>
 
-    <div id="video-wrap">
-      <video id="result-video" controls playsinline></video>
-      <div id="video-placeholder" class="overlay-status">Press <b>Generate</b> to render the MMS.</div>
+    <div class="view-tabs" role="tablist">
+      <button class="view-tab" role="tab" data-view="3d" title="Real-time preview on the 3D character">3D preview</button>
+      <button class="view-tab" role="tab" data-view="video" title="Rendered videos">Video</button>
     </div>
-    <div id="video-caption" class="muted"></div>
+
+    <div class="view-pane" data-view="3d">
+      <div id="v3d-canvas-box" class="video-box" tabindex="0">
+        <div id="v3d-gloss" class="v3d-gloss"></div>
+        <div id="v3d-status" class="overlay-status"><span>Press <b>Preview 3D</b> to animate the character.</span></div>
+      </div>
+      <div class="v3d-controls">
+        <button id="v3d-play" title="Play/pause (Space)">▶</button>
+        <input id="v3d-scrub" type="range" min="0" max="0" step="0.001" value="0">
+        <span id="v3d-time" class="muted"></span>
+      </div>
+      <div class="v3d-controls">
+        <label title="Playback speed">Speed
+          <select id="v3d-speed">
+            <option value="0.25">¼×</option>
+            <option value="0.5">½×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+          </select>
+        </label>
+        <label title="Loop the playback"><input type="checkbox" id="v3d-loop" checked> Loop</label>
+      </div>
+      <div class="v3d-controls">
+        <span class="tool-label">3D view</span>
+        <button id="v3d-reset" title="Back to the rendering camera point of view">Reset</button>
+        <button id="v3d-view-top" title="Look at the character from above">Top</button>
+        <button id="v3d-view-left" title="Look at the character from her left side">Left</button>
+        <button id="v3d-view-right" title="Look at the character from her right side">Right</button>
+      </div>
+      <div id="v3d-caption" class="muted"></div>
+    </div>
+
+    <div class="view-pane" data-view="video">
+      <div id="video-wrap" class="video-box">
+        <video id="result-video" controls playsinline></video>
+        <div id="video-placeholder" class="overlay-status"><span>Press <b>Render video</b> to render the MMS.</span></div>
+      </div>
+      <div id="video-caption" class="muted"></div>
+    </div>
 
     <div class="renders">
       <div class="panel-title">Previous renders</div>
@@ -127,6 +166,15 @@
 <div id="context-menu" hidden></div>
 
 <script>window.MMSWEB_BOOT = {{ boot|tojson }};</script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "{{ url_for('static', filename='vendor/three/three.module.min.js') }}",
+    "three/addons/": "{{ url_for('static', filename='vendor/three/addons/') }}"
+  }
+}
+</script>
 <script src="{{ url_for('static', filename='app.js') }}?v={{ boot.version }}"></script>
+<script type="module" src="{{ url_for('static', filename='viewer3d.js') }}?v={{ boot.version }}"></script>
 </body>
 </html>

@@ -20,6 +20,13 @@ from .schema import HOLD_KEYWORD, schema_for_client
 
 WEBGUI_DIR = Path(__file__).resolve().parent.parent
 
+# The character for the real-time 3D preview, relative to the MMS-Player directory (see tools/export_character_glb.py).
+CHARACTER_GLB_PATH = Path("assets") / "gloria-260813.glb"
+# Suffix of the animation data files for the real-time 3D preview (see main.py --export-preview-json).
+ANIM_SUFFIX = ".preview.json"
+# How many 3D preview animations are kept in the cache.
+MAX_CACHED_ANIMS = 20
+
 
 @dataclass
 class ServerConfig:
@@ -70,15 +77,16 @@ def create_app(cfg: ServerConfig) -> Flask:
 
     cache_dir = cfg.project_dir / ".mmsweb-cache"
     previews_dir = cache_dir / "previews"
+    anims_dir = cache_dir / "anims"
     renders_dir = cfg.project_dir / "renders"
     examples_dir = cfg.player_dir / "MMS-examples"
-    for d in (cfg.project_dir, cache_dir, previews_dir, renders_dir):
+    for d in (cfg.project_dir, cache_dir, previews_dir, anims_dir, renders_dir):
         d.mkdir(parents=True, exist_ok=True)
 
     dictionary = Dictionary(cfg.dictionary_dir)
     runner = PlayerRunner(cfg.blender_exe, cfg.player_dir, cfg.dictionary_dir)
     render_queue = JobQueue("render", cfg.render_workers)
-    aux_queue = JobQueue("aux", 1)  # sign previews and durations: don't wait behind long renders
+    aux_queue = JobQueue("aux", 1)  # sign previews, durations, and 3D previews: don't wait behind long renders
     durations = DurationCache(cache_dir / "durations.json")
 
     def find_job(job_id: str) -> Optional[Job]:
@@ -95,11 +103,15 @@ def create_app(cfg: ServerConfig) -> Flask:
     def bad_request(msg: str, code: int = 400):
         return jsonify({"error": msg}), code
 
+    character_glb = cfg.player_dir / CHARACTER_GLB_PATH
+
     #
     # HTML
     @app.route("/")
     def index():
         boot = {
+            "character_url": (f"/media/character.glb?v={int(character_glb.stat().st_mtime)}"
+                              if character_glb.exists() else None),
             "version": __version__,
             "schema": schema_for_client(),
             "defaults": {"render_size_pct": cfg.default_render_size_pct, "target_fps": cfg.target_fps},
@@ -287,17 +299,70 @@ def create_app(cfg: ServerConfig) -> Flask:
         out_stem = f"{safe_file_stem(stem)}-{stamp}"
         mms_path = renders_dir / (out_stem + MMS_SUFFIX)
         mp4_path = renders_dir / (out_stem + ".mp4")
+        anim_path = renders_dir / (out_stem + ANIM_SUFFIX)
         write_mms_file(mms_path, rows, [str(c) for c in body.get("extra_columns") or []])
 
         def work(job: Job):
             runner.render_mp4(job, mms_path, mp4_path, use_relative_time=relative, render_size_pct=size_pct,
                               expected_gloss_loads=count_gloss_loads(rows, HOLD_KEYWORD),
-                              target_fps=target_fps, gloss_panel=gloss_panel)
+                              target_fps=target_fps, gloss_panel=gloss_panel, preview_json_path=anim_path)
             job.result = {"url": f"/media/renders/{mp4_path.name}", "name": mp4_path.name,
-                          "mms": mms_path.name}
+                          "mms": mms_path.name,
+                          "anim_url": f"/media/renders/{anim_path.name}" if anim_path.exists() else None}
 
         job = render_queue.submit(Job("render", f"Render of {stem}"), work)
         return jsonify({"job": job.to_dict()})
+
+    @app.route("/api/preview3d", methods=["POST"])
+    def api_preview3d():
+        """Realize the posted MMS table into animation data for the real-time 3D preview (no video rendering).
+        Same body as /api/generate. Returns the job to poll; its result has the 'anim_url' of the JSON data."""
+        body = request.get_json(silent=True) or {}
+        try:
+            rows = clean_rows(body.get("rows"))
+        except ValueError as e:
+            return bad_request(str(e))
+        if not rows:
+            return bad_request("The MMS has no rows.")
+        opts = body.get("options") or {}
+        relative = bool(body.get("relative", True))
+        target_fps = int(opts.get("target_fps") or cfg.target_fps)
+
+        try:
+            stem = normalize_mms_name(body.get("name") or "untitled")[: -len(MMS_SUFFIX)]
+        except ValueError:
+            stem = "untitled"
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        out_stem = f"{safe_file_stem(stem)}-{stamp}"
+        mms_path = anims_dir / (out_stem + MMS_SUFFIX)
+        anim_path = anims_dir / (out_stem + ANIM_SUFFIX)
+        write_mms_file(mms_path, rows, [str(c) for c in body.get("extra_columns") or []])
+
+        def work(job: Job):
+            runner.export_preview(job, mms_path, anim_path, use_relative_time=relative,
+                                  expected_gloss_loads=count_gloss_loads(rows, HOLD_KEYWORD), target_fps=target_fps)
+            job.result = {"anim_url": f"/media/anims/{anim_path.name}", "name": out_stem}
+            prune_anims()
+
+        job = aux_queue.submit(Job("preview3d", f"3D preview of {stem}"), work)
+        return jsonify({"job": job.to_dict()})
+
+    def prune_anims():
+        """Keep only the most recent 3D preview animations (and their MMS) in the cache."""
+        anims = sorted(anims_dir.glob("*" + ANIM_SUFFIX), key=lambda p: p.stat().st_mtime, reverse=True)
+        for p in anims[MAX_CACHED_ANIMS:]:
+            p.unlink(missing_ok=True)
+            (anims_dir / (p.name[: -len(ANIM_SUFFIX)] + MMS_SUFFIX)).unlink(missing_ok=True)
+
+    @app.route("/media/anims/<filename>")
+    def media_anim(filename: str):
+        return send_from_directory(anims_dir, filename)
+
+    @app.route("/media/character.glb")
+    def media_character():
+        if not character_glb.exists():
+            abort(404)
+        return send_from_directory(character_glb.parent, character_glb.name, max_age=3600)
 
     @app.route("/api/renders")
     def api_renders():
@@ -307,6 +372,8 @@ def create_app(cfg: ServerConfig) -> Flask:
             "name": p.name,
             "url": f"/media/renders/{p.name}",
             "mms": p.with_suffix("").name + MMS_SUFFIX if (renders_dir / (p.with_suffix("").name + MMS_SUFFIX)).exists() else None,
+            "anim_url": (f"/media/renders/{p.with_suffix('').name}{ANIM_SUFFIX}"
+                         if (renders_dir / (p.with_suffix("").name + ANIM_SUFFIX)).exists() else None),
             "modified": p.stat().st_mtime,
         } for p in vids[:100]]})
 

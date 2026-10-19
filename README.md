@@ -180,6 +180,12 @@ If you want to export to another 3D format, for example for further motion analy
     --export-bvh <skeleton_file.bvh>
     --export-fbx <model_file.fbx>
 
+If you want to play the animation in real time, e.g., in a web browser with Three.js, without rendering a video, use:
+
+    --export-preview-json <animation.preview.json>
+
+The JSON file contains, for every frame, the local transform of each bone and the weight of each facial blendshape. The values can be applied directly to the joints of the character exported in glTF format (`assets/gloria-YYMMDD.glb`, see `tools/export_character_glb.py`). The format is documented in `player/preview_exporter.py`. The WebGUI uses it for its real-time 3D preview.
+
 For debugging purposes, `--gloss-panel` adds a procedurally-generated panel at the top of the camera view, showing the previous/current/next gloss being played (with the current one highlighted), or the transition between two glosses (with the arrow highlighted).
 
 
