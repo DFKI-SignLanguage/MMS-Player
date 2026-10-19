@@ -579,6 +579,7 @@ function showContextMenu(e, items) {
   menu.textContent = "";
   for (const it of items) {
     if (it === null) { menu.append(el("hr")); continue; }
+    if (it[2]?.disabled) { menu.append(el("div", { text: it[0], class: "disabled" })); continue; }
     menu.append(el("div", { text: it[0], onclick: () => { menu.hidden = true; it[1](); } }));
   }
   menu.hidden = false;
@@ -1109,6 +1110,31 @@ function renderAll() {
   renderTimeline();
 }
 
+function showColumnsMenu() {
+  const n = state.extraColumns.length;
+  const r = $("#btn-columns-menu").getBoundingClientRect();
+  showContextMenu({ preventDefault() {}, clientX: r.left, clientY: r.bottom + 2 }, [
+    ["Expand x/y/z", () => { prefs.expanded = [...TRIPLET_IDS]; savePrefs(); renderTable(); }],
+    ["Collapse x/y/z", () => { prefs.expanded = []; savePrefs(); renderTable(); }],
+    null,
+    n ? [`Remove unknown columns (${n})…`, dropUnknownColumns] : ["No unknown columns", null, { disabled: true }],
+  ]);
+}
+
+// Old MMS files may contain columns that are no longer used, or that have been renamed.
+function dropUnknownColumns() {
+  const cols = state.extraColumns;
+  if (!cols.length) return;
+  const withData = cols.filter((c) => state.rows.some((r) => (r[c] ?? "").trim() !== ""));
+  let msg = `Remove ${cols.length} column(s) not used by the MMS-Player?\n\n${cols.join(", ")}`;
+  if (withData.length) msg += `\n\nThese contain values, which will be lost: ${withData.join(", ")}`;
+  if (!confirm(msg)) return;
+  for (const r of state.rows) for (const c of cols) delete r[c];
+  state.extraColumns = [];
+  markChanged({ structure: true });
+  setStatus(`Removed ${cols.length} unknown column(s)`);
+}
+
 function confirmDiscard() {
   return !state.dirty || confirm("The current MMS has unsaved changes. Discard them?");
 }
@@ -1454,8 +1480,10 @@ function setupToolbar() {
     renderTable();
     renderTimeline();
   });
-  $("#btn-expand-all").addEventListener("click", () => { prefs.expanded = [...TRIPLET_IDS]; savePrefs(); renderTable(); });
-  $("#btn-collapse-all").addEventListener("click", () => { prefs.expanded = []; savePrefs(); renderTable(); });
+  // Clicking the button while its menu is open closes the menu (the document mousedown handler hides it)
+  let columnsMenuWasOpen = false;
+  $("#btn-columns-menu").addEventListener("mousedown", () => { columnsMenuWasOpen = !$("#context-menu").hidden; });
+  $("#btn-columns-menu").addEventListener("click", () => { if (!columnsMenuWasOpen) showColumnsMenu(); });
 
   $("#btn-generate").addEventListener("click", generate);
   $("#btn-preview3d").addEventListener("click", preview3d);

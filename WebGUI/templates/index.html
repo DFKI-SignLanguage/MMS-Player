@@ -77,8 +77,7 @@
         <span class="tool-label">Inflections:</span>
       </div>
       <div class="tool-group">
-        <button id="btn-expand-all" title="Show the x/y/z components of all the inflection parameters">Expand x/y/z</button>
-        <button id="btn-collapse-all" title="Group the x/y/z components in a single cell">Collapse x/y/z</button>
+        <button id="btn-columns-menu" title="Column display and cleanup">Columns ▾</button>
       </div>
     </div>
 
@@ -125,7 +124,6 @@
     <div class="gen-controls">
       <button id="btn-preview3d" class="primary" title="Compute the animation and play it on the 3D character (fast, no video rendering)">Preview 3D</button>
       <button id="btn-generate" title="Render the MMS into a video (slow)">Render video</button>
-      <button id="btn-cancel" hidden>Cancel</button>
       <label title="Render size, as percentage of 1080×1920">Size
         <select id="opt-size">
           <option value="25">25%</option>
@@ -138,7 +136,10 @@
     </div>
 
     <div id="progress" hidden>
-      <div class="progress-bar"><div class="progress-fill"></div></div>
+      <div class="progress-row">
+        <div class="progress-bar"><div class="progress-fill"></div></div>
+        <button id="btn-cancel" hidden>Cancel</button>
+      </div>
       <div class="progress-text"><span id="progress-phase"></span><span id="progress-time" class="muted"></span></div>
       <details id="log-details"><summary>Log</summary><pre id="job-log"></pre></details>
     </div>
