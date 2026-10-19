@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Within an inflection group used in a row, empty x/y/z triples default to identity values (e.g., only `domhandrelocx/y/z` can be filled, without `domhandreloca*`/`domhandrelocs*`). A triple with only some of x/y/z filled is reported as an error.
 - Fix: dominant and non-dominant shoulder relocations (`domshoulderreloc*`, `ndomshoulderreloc*`) can now be specified independently.
 - Renamed and adjusted the Makefile for the MMS-Examples. Check `MMS-Examples/README.md` for details. 
+- Implemented a WebGUI for easier editing and preview of MMS instances.
 
 ## [0.5.1] - 2026-10-14
 
