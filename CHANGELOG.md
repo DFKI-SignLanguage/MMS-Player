@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - WebGUI: the single-sign dictionary preview is also in real-time 3D, with the same controls of the main preview. Videos are rendered only for full sentences. The `--preview-size-pct` server option was removed.
 - Fix: the facial animation was not applied to the right eye (`Eye_R`) mesh.
 - More human-friendly management of MMS inflection values. Now rotations are expressed in degrees and all numbers are rounded to 1 decimal.
+- Issue #34. Fix: the avatar was sliding forward and backwards around a <HOLD>. `Bone_Root` (keyed by all glosses) is now in `assets/animated_bones.json`, so the hold action freezes it too, instead of resetting it to its rest location.
 
 ## [0.5.1] - 2026-10-14
 
