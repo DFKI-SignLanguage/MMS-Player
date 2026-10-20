@@ -25,6 +25,7 @@ The web interface is divided into three sections, arranged horizontally.
 ### Dictionary preview
 
 On the left side, we have the dictionary exploration panel.
+Its width can be adjusted by dragging the splitter on its right, and the panel can be hidden completely with the sidebar button at the left of the table toolbar (*‹ Hide* / *Signs ›*). Width and visibility are remembered by the browser.
 
 It lists all the signs present in the selected dictionary.
 Users can filter the visible signs by typing part of the name.

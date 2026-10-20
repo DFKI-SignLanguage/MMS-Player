@@ -73,8 +73,16 @@
     </div>
   </aside>
 
+  <div id="splitter-left" class="splitter" title="Drag to resize"></div>
+
   <div id="table-column">
     <div class="toolbar">
+      <div class="tool-group">
+        <button id="btn-toggle-signs" aria-controls="sign-browser">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><rect class="side" x="1.5" y="2.5" width="4.5" height="11" rx="1.5"/></svg>
+          <span class="label"></span>
+        </button>
+      </div>
       <div class="tool-group">
         <button id="btn-add-row" title="Insert a row after the selected one (Ctrl+Enter)">+ Row</button>
         <button id="btn-dup-row" title="Duplicate the selected row">Duplicate</button>
@@ -103,7 +111,7 @@
     <div id="validation" hidden></div>
   </div>
 
-  <div id="splitter" title="Drag to resize"></div>
+  <div id="splitter" class="splitter" title="Drag to resize"></div>
 
   <section id="right">
     <div class="gen-controls">

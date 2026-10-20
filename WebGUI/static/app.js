@@ -116,7 +116,7 @@ const PREFS_KEY = "mmsweb.prefs";
 const DRAFT_KEY = "mmsweb.draft";
 const prefs = Object.assign({
   expanded: [], hiddenSubs: [], size: String(BOOT.defaults.render_size_pct), panel: false, rightW: 540, zoom: 120,
-  view: "3d",
+  view: "3d", leftW: 250, signsHidden: false,
 }, readStorage(PREFS_KEY));
 
 function readStorage(key) {
@@ -1542,17 +1542,18 @@ function setupToolbar() {
   });
   window.addEventListener("beforeunload", (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ""; } });
 
-  // Splitter between editor and video
+  // Splitters around the editor: sign browser | editor | video. The editor keeps at least MIN_EDITOR_W.
   const root = document.documentElement;
-  root.style.setProperty("--right-w", prefs.rightW + "px");
-  const splitter = $("#splitter");
-  splitter.addEventListener("mousedown", (e) => {
+  const MIN_EDITOR_W = 170;
+  const leftSpace = () => (prefs.signsHidden ? 0 : prefs.leftW + 6);
+  const applyWidths = () => {
+    root.style.setProperty("--left-w", prefs.leftW + "px");
+    root.style.setProperty("--right-w", prefs.rightW + "px");
+  };
+  const dragSplitter = (splitter, onMove) => splitter.addEventListener("mousedown", (e) => {
     e.preventDefault();
     splitter.classList.add("dragging");
-    const move = (ev) => {
-      prefs.rightW = Math.max(260, Math.min(window.innerWidth - 420, window.innerWidth - ev.clientX - 3));
-      root.style.setProperty("--right-w", prefs.rightW + "px");
-    };
+    const move = (ev) => { onMove(ev.clientX); applyWidths(); };
     const up = () => {
       splitter.classList.remove("dragging");
       document.removeEventListener("mousemove", move);
@@ -1562,6 +1563,30 @@ function setupToolbar() {
     document.addEventListener("mousemove", move);
     document.addEventListener("mouseup", up);
   });
+  dragSplitter($("#splitter"), (x) => {
+    prefs.rightW = Math.max(260, Math.min(window.innerWidth - leftSpace() - MIN_EDITOR_W, window.innerWidth - x - 3));
+  });
+  dragSplitter($("#splitter-left"), (x) => {
+    prefs.leftW = Math.max(180, Math.min(window.innerWidth - prefs.rightW - 6 - MIN_EDITOR_W, x - 3));
+  });
+  applyWidths();
+
+  // Show/hide the sign browser
+  const toggleSigns = $("#btn-toggle-signs");
+  const applySignsHidden = () => {
+    const hidden = prefs.signsHidden;
+    $("#layout").classList.toggle("signs-hidden", hidden);
+    toggleSigns.setAttribute("aria-expanded", String(!hidden));
+    toggleSigns.title = hidden ? "Show the sign browser" : "Hide the sign browser";
+    toggleSigns.querySelector(".label").textContent = hidden ? "Signs ›" : "‹ Hide";
+    signViewer.then((v) => v.setActive(!prefs.signsHidden));
+  };
+  toggleSigns.addEventListener("click", () => {
+    prefs.signsHidden = !prefs.signsHidden;
+    savePrefs();
+    applySignsHidden();
+  });
+  applySignsHidden();
 }
 
 //
@@ -1573,7 +1598,6 @@ function boot() {
   setupSignBrowser();
   setupTimeline();
   setView(prefs.view);
-  signViewer.then((v) => v.setActive(true));
 
   const draft = readStorage(DRAFT_KEY);
   if (draft.rows && draft.rows.length) {
