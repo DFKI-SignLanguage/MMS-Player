@@ -707,6 +707,7 @@ async function loadGlosses() {
     glossState.list = data.glosses.map((g) => ({ ...g, idL: g.id.toLowerCase(), nameL: g.name.toLowerCase() }));
     glossState.ids = new Set(data.glosses.map((g) => g.id));
     glossState.loaded = true;
+    renderCategoryOptions();
     filterSigns($("#sb-filter").value);
     validate();
     applyValidationMarks();
@@ -722,15 +723,28 @@ function setGlossTarget(row, col) {
   t.append("Double click inserts into ", el("b", { text: `row ${row + 1}, ${col}` }));
 }
 
+function renderCategoryOptions() {
+  const sel = $("#sb-category");
+  const current = sel.value;
+  const counts = {};
+  for (const g of glossState.list) counts[g.cls] = (counts[g.cls] || 0) + 1;
+  sel.textContent = "";
+  sel.append(el("option", { value: "", text: `All categories (${glossState.list.length})` }));
+  for (const cls of Object.keys(counts).sort()) sel.append(el("option", { value: cls, text: `${cls} (${counts[cls]})` }));
+  sel.value = current in counts ? current : "";
+}
+
 function filterSigns(query, fromCell = false) {
   if (fromCell || document.activeElement !== $("#sb-filter")) $("#sb-filter").value = query;
   const q = query.trim().toLowerCase();
+  const cat = $("#sb-category").value;
+  const pool = cat ? glossState.list.filter((g) => g.cls === cat) : glossState.list;
   let res;
   if (q === "") {
-    res = glossState.list.map((g) => g.id);
+    res = pool.map((g) => g.id);
   } else {
     const scored = [];
-    for (const g of glossState.list) {
+    for (const g of pool) {
       let s;
       if (g.idL === q || g.nameL === q) s = 0;
       else if (g.idL.startsWith(q) || g.nameL.startsWith(q)) s = 1;
@@ -741,7 +755,7 @@ function filterSigns(query, fromCell = false) {
     scored.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1]));
     res = scored.map((x) => x[1]);
   }
-  if (q === "" || HOLD.toLowerCase().includes(q)) res.unshift(HOLD);
+  if (!cat && (q === "" || HOLD.toLowerCase().includes(q))) res.unshift(HOLD);
   glossState.filtered = res;
   glossState.active = q !== "" && res.length > 0 ? 0 : -1;
   renderSignList();
@@ -832,6 +846,7 @@ function setupSignBrowser() {
 
   const filter = $("#sb-filter");
   filter.addEventListener("input", () => filterSigns(filter.value));
+  $("#sb-category").addEventListener("change", () => filterSigns(filter.value));
   filter.addEventListener("keydown", (e) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); moveSignActive(e.key === "ArrowDown" ? 1 : -1); }
     else if (e.key === "Enter" && glossState.active >= 0) { e.preventDefault(); insertSign(glossState.filtered[glossState.active]); }

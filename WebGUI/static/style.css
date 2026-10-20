@@ -139,7 +139,7 @@ select, input[type=text], input[type=search] {
   width: 250px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px;
   background: #fbfbfc; border-right: 1px solid var(--border); min-height: 0;
 }
-#sb-filter { width: 100%; }
+#sb-filter, #sb-category { width: 100%; }
 .sb-target { font-size: 0.846rem; color: var(--muted); min-height: 15px; }
 .sb-target b { color: var(--accent); }
 #sb-list {
