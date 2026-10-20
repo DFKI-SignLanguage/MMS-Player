@@ -71,7 +71,7 @@ select, input[type=text], input[type=search] {
 
 .toolbar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 6px 10px;
-  background: var(--panel); border-bottom: 1px solid var(--border);
+  background: var(--panel); border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
 .tool-group { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .tool-group label { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; white-space: nowrap; }
