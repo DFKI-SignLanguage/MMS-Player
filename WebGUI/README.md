@@ -76,7 +76,7 @@ my-mms-project/
 
 Previous renders are listed below. *load MMS* puts the MMS that produced a render back into the editor, and *3D* plays its animation on the 3D character.
 
-**Files.** *Open…* loads an MMS from the project folder or from the player's `MMS-examples` (examples are read-only, so saving one creates a copy). The other file buttons are *Save* (`Ctrl/Cmd+S`), *Download*, and *Import*. Columns that the MMS-Player doesn't use, for example unused or renamed columns of old MMS files, are kept and shown under *Other* in the table. *Remove unknown columns*, in the toolbar's *Columns* menu, deletes them, after asking for confirmation. The browser keeps a draft of the current table, so reloading the page doesn't lose your work.
+**Files.** *Open…* loads an MMS from the project folder or from the player's `MMS-examples` (examples are read-only, so saving one creates a copy). The other file buttons are *Save* (`Ctrl/Cmd+S`), *Download*, and *Import*. *Delete* removes the current MMS from the project folder, after asking for confirmation. It is available only for MMS opened from or saved to the project folder, and the content stays in the editor as unsaved. Columns that the MMS-Player doesn't use, for example unused or renamed columns of old MMS files, are kept and shown under *Other* in the table. *Remove unknown columns*, in the toolbar's *Columns* menu, deletes them, after asking for confirmation. The browser keeps a draft of the current table, so reloading the page doesn't lose your work.
 
 ## Architecture
 
@@ -118,6 +118,7 @@ Progress comes from the player's output. `progress_hook.py` registers a `render_
 | POST | `/api/glosses/durations` `{ids}` | Original durations; unknown ones are computed in a job |
 | GET | `/api/projects`, `/api/projects/<name>`, `/api/examples/<name>` | List and load MMS instances |
 | PUT | `/api/projects/<name>` `{rows, extra_columns, overwrite}` | Save an MMS |
+| DELETE | `/api/projects/<name>` | Delete an MMS from the project folder |
 | POST | `/api/generate` `{name, rows, relative, options}` | Render a video (and its 3D animation data); returns a job |
 | POST | `/api/preview3d` `{name, rows, relative, options}` | Compute only the 3D animation data; returns a job whose result has `anim_url` |
 | GET | `/api/jobs/<id>[?log=1]` | Job status, phase, progress (0–1), result, log |

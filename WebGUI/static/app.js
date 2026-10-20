@@ -205,6 +205,8 @@ function markChanged({ timeline = true, structure = false } = {}) {
 function updateDirtyFlag() {
   $("#dirty-flag").textContent = state.dirty ? "● unsaved" : "";
   document.title = (state.dirty ? "● " : "") + state.name + " — MMS-Player Editor";
+  // Only files of the project folder can be deleted (not examples, imports, or never saved MMS)
+  $("#btn-delete").disabled = !state.loadedFrom;
 }
 
 //
@@ -1254,6 +1256,24 @@ async function saveDocument() {
   }
 }
 
+/** Deletes the file of the current MMS from the project folder. The content stays in the editor, as unsaved. */
+async function deleteDocument() {
+  const name = state.loadedFrom;
+  if (!name) return;
+  if (!confirm(`Delete '${name}' from the project folder?\n\nThis can not be undone. The content stays in the editor until you close or replace it.`)) return;
+  try {
+    await api("DELETE", `/api/projects/${encodeURIComponent(name)}`);
+    state.loadedFrom = null;
+    state.dirty = true;
+    updateDirtyFlag();
+    saveDraft();
+    refreshProjects();
+    setStatus(`Deleted ${name}`);
+  } catch (e) {
+    setStatus(`Can not delete ${name}: ${e.message}`, true);
+  }
+}
+
 async function downloadDocument() {
   try {
     const res = await fetch("/api/mms/serialize", {
@@ -1497,6 +1517,7 @@ function setupToolbar() {
   $("#sel-open").addEventListener("change", openSelected);
   $("#btn-save").addEventListener("click", saveDocument);
   $("#btn-download").addEventListener("click", downloadDocument);
+  $("#btn-delete").addEventListener("click", deleteDocument);
   $("#inp-import").addEventListener("change", (e) => { importDocument(e.target.files[0]); e.target.value = ""; });
   $("#inp-name").addEventListener("change", () => {
     state.name = normalizedName();

@@ -54,6 +54,10 @@ select, input[type=text], input[type=search] {
   background: #374151; border-color: #4b5563; color: #fff;
 }
 .file-controls button:hover, .file-controls .button:hover { background: #4b5563; }
+/* Kept apart from the other file buttons, and red, to avoid deleting by mistake */
+.file-controls #btn-delete { margin-left: 18px; color: #fca5a5; border-color: #7f1d1d; }
+.file-controls #btn-delete:hover:not(:disabled) { background: #7f1d1d; color: #fff; }
+.file-controls #btn-delete:disabled { opacity: .4; cursor: default; }
 #inp-name { width: 240px; }
 .dirty-flag { color: #fbbf24; font-size: 0.923rem; min-width: 70px; }
 .topbar .status { margin-left: auto; font-size: 0.923rem; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

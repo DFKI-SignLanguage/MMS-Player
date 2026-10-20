@@ -250,6 +250,17 @@ def create_app(cfg: ServerConfig) -> Flask:
         write_mms_file(path, rows, [str(c) for c in body.get("extra_columns") or []])
         return jsonify({"name": name, "saved": True})
 
+    @app.route("/api/projects/<name>", methods=["DELETE"])
+    def api_project_delete(name: str):
+        """Delete an MMS from the project folder (the examples can't be deleted)."""
+        if "/" in name or "\\" in name or name.startswith("."):
+            abort(400)
+        path = cfg.project_dir / name
+        if not path.is_file():
+            abort(404)
+        path.unlink()
+        return jsonify({"name": name, "deleted": True})
+
     @app.route("/api/mms/parse", methods=["POST"])
     def api_mms_parse():
         """Parse an uploaded MMS (field 'file') and return its table."""
