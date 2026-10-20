@@ -50,6 +50,9 @@ The columns of the MMS are divided into sections:
 * The third section is the set of inflection parameters.
   * Inflection parameters are also divided into subsections, one for each body part: Torso, Head, Shoulders, Dominant hand, and Non-dominant hand. Each body part can be hidden.
   * The x/y/z components of an inflection parameter are grouped, and they can optionally be shown in separate columns or collapsed into a single cell.
+  * Rotations are shown and edited in degrees, although the MMS stores them in radians. They are converted to degrees when an MMS is loaded (opened, imported, or restored from a render), and back to radians (6 decimals) whenever it leaves the editor (save, download, video generation, and 3D preview).
+  * On loading, locations (cm) and rotations (degrees) are rounded to one decimal. Values typed by the user are kept as typed. Scale values are not altered.
+  * The browser draft stores the values already in degrees, so restoring it after a page reload doesn't convert them twice.
 
 Below the MMS table, there is a timeline showing a preview of the timing information.
 The timeline flows horizontally to the right, and the time range of the selected MMS row is highlighted on the timeline.

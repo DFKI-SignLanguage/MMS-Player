@@ -90,6 +90,11 @@ const TIMING_ABS = new Set(["framestart", "frameend"]);
 const TIMING_REL = new Set(["duration", "transition"]);
 const isInflection = (c) => c in SCHEMA.identity;
 const INFLECTION_SUBS = SCHEMA.sections.find((s) => s.id === "inflections").subsections;
+// Rotations are stored in radians in the MMS, but edited in degrees.
+// Locations and rotations are shown with one decimal.
+const INFLECTION_GROUPS = INFLECTION_SUBS.flatMap((s) => s.groups);
+const ROT_COLS = new Set(INFLECTION_GROUPS.filter((g) => g.unit === "°").flatMap((g) => g.columns));
+const ROUND1_COLS = INFLECTION_GROUPS.filter((g) => g.unit === "°" || g.unit === "cm").flatMap((g) => g.columns);
 const TRIPLET_IDS = GROUPS.filter((g) => g.group.columns.length > 1).map((g) => g.group.id);
 const OTHER_SECTION = { id: "other", label: "Other" };
 const OTHER_SUB = { id: "other", label: "Unknown columns" };
@@ -123,7 +128,7 @@ function writeStorage(key, value) {
 const savePrefs = () => writeStorage(PREFS_KEY, prefs);
 const saveDraft = debounce(() => writeStorage(DRAFT_KEY, {
   name: state.name, loadedFrom: state.loadedFrom, rows: state.rows, extraColumns: state.extraColumns,
-  relative: state.relative, dirty: state.dirty,
+  relative: state.relative, dirty: state.dirty, units: "deg",
 }), 400);
 
 const glossState = {
@@ -160,6 +165,21 @@ function parseNum(s) {
   s = (s ?? "").toString().trim();
   if (s === "") return NaN;
   return Number(s);
+}
+
+/** Converts an inflection value from the MMS file units to the editor units (degrees, one decimal). */
+function toDisplay(col, s) {
+  const x = parseNum(s);
+  if (!isFinite(x)) return s;
+  const v = ROT_COLS.has(col) ? x * 180 / Math.PI : x;
+  return String(Math.round(v * 10) / 10);
+}
+
+/** Converts a value from the editor units back to the MMS file units (radians for rotations). */
+function toFile(col, s) {
+  const x = parseNum(s);
+  if (!ROT_COLS.has(col) || !isFinite(x)) return s;
+  return String(Math.round(x * Math.PI / 180 * 1e6) / 1e6);
 }
 
 function parseDuration(s) {
@@ -1093,9 +1113,12 @@ function showPlayhead(t) {
 //
 // ---------------------------------------------------------------- Documents
 //
-function setDocument(data, { name, loadedFrom }) {
+function setDocument(data, { name, loadedFrom, displayUnits = false }) {
   state.extraColumns = data.extra_columns || [];
   state.rows = (data.rows.length ? data.rows : [newRow(null)]).map((r) => Object.assign(emptyRow(), r));
+  if (!displayUnits) {
+    for (const r of state.rows) for (const c of ROUND1_COLS) r[c] = toDisplay(c, r[c]);
+  }
   state.relative = data.relative !== undefined ? !!data.relative : true;
   state.name = name;
   state.loadedFrom = loadedFrom;
@@ -1202,7 +1225,7 @@ function normalizedName() {
 
 function exportRows() {
   const cols = [...KNOWN_COLS, ...state.extraColumns];
-  return state.rows.map((r) => Object.fromEntries(cols.map((c) => [c, (r[c] ?? "").trim()])));
+  return state.rows.map((r) => Object.fromEntries(cols.map((c) => [c, toFile(c, (r[c] ?? "").trim())])));
 }
 
 async function saveDocument() {
@@ -1554,7 +1577,7 @@ function boot() {
   const draft = readStorage(DRAFT_KEY);
   if (draft.rows && draft.rows.length) {
     setDocument({ rows: draft.rows, extra_columns: draft.extraColumns, relative: draft.relative },
-      { name: draft.name || "untitled" + MMS_SUFFIX, loadedFrom: draft.loadedFrom || null });
+      { name: draft.name || "untitled" + MMS_SUFFIX, loadedFrom: draft.loadedFrom || null, displayUnits: draft.units === "deg" });
     state.dirty = !!draft.dirty;
     updateDirtyFlag();
   } else {

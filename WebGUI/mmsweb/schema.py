@@ -35,9 +35,9 @@ def _hand_subsection(prefix: str, label: str) -> dict:
         "label": label,
         "groups": [
             _group(f"{prefix}handreloc", "Traj. location", reloc, "cm", "Translation of the hand trajectory."),
-            _group(f"{prefix}handreloca", "Traj. rotation", reloca, "rad", "Rotation of the hand trajectory around its starting point."),
+            _group(f"{prefix}handreloca", "Traj. rotation", reloca, "°", "Rotation of the hand trajectory around its starting point."),
             _group(f"{prefix}handrelocs", "Traj. scale", relocs, "×", "Scaling of the hand trajectory around its starting point."),
-            _group(f"{prefix}handrot", "Hand rotation", rot, "rad", "Delta rotation applied to the hand bone."),
+            _group(f"{prefix}handrot", "Hand rotation", rot, "°", "Delta rotation applied to the hand bone."),
         ],
         "fill_groups": [reloc + reloca + relocs, rot],
     }
@@ -93,7 +93,7 @@ SECTIONS: List[dict] = [
                 "label": "Torso",
                 "groups": [
                     _group("torsoreloc", "Location", _xyz("torsoreloc"), "cm"),
-                    _group("torsoreloca", "Rotation", _xyz("torsoreloc", "a"), "rad"),
+                    _group("torsoreloca", "Rotation", _xyz("torsoreloc", "a"), "°"),
                 ],
                 "fill_groups": [_xyz("torsoreloc") + _xyz("torsoreloc", "a")],
             },
@@ -101,7 +101,7 @@ SECTIONS: List[dict] = [
                 "id": "head",
                 "label": "Head",
                 "groups": [
-                    _group("headrot", "Rotation", _xyz("headrot"), "rad"),
+                    _group("headrot", "Rotation", _xyz("headrot"), "°"),
                 ],
                 "fill_groups": [_xyz("headrot")],
             },
