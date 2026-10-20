@@ -73,7 +73,9 @@ select, input[type=text], input[type=search] {
 #timeline-panel { grid-column: 2 / 5; grid-row: 2; }
 #splitter { cursor: col-resize; background: var(--border); }
 #splitter:hover, #splitter.dragging { background: var(--accent); }
-#right { display: flex; flex-direction: column; min-height: 0; background: var(--panel); padding: 10px; gap: 8px; overflow: auto; }
+/* The right panel doesn't scroll: the preview shrinks to fit, and only the list of renders scrolls. */
+#right { display: flex; flex-direction: column; min-height: 0; background: var(--panel); padding: 10px; gap: 8px; overflow: hidden; }
+#right > * { flex-shrink: 0; }
 
 .toolbar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 6px 10px;
@@ -233,8 +235,11 @@ select, input[type=text], input[type=search] {
 .view-tab:hover { color: inherit; }
 .view-tab.active { background: var(--panel); border-color: var(--border); border-bottom: 1px solid var(--panel); color: inherit; font-weight: 600; }
 .view-pane { display: flex; flex-direction: column; gap: 6px; }
+#right > .view-pane, .view-pane > .v3d { flex: 0 1 auto; min-height: 0; }
+.view-pane .v3d > *, .view-pane > * { flex-shrink: 0; }
 .view-pane[hidden] { display: none; }
-.video-box { position: relative; background: #111; border-radius: 6px; aspect-ratio: 9 / 16; width: 100%; max-height: 70vh; flex-shrink: 0; }
+.video-box { position: relative; background: #111; border-radius: 6px; aspect-ratio: 9 / 16; width: 100%; max-height: 70vh; }
+.view-pane .video-box { flex: 0 1 auto; min-height: 120px; }
 .v3d-canvas-box { background: linear-gradient(#3a3f47, #6b717b); overflow: hidden; outline: none; }
 .v3d-canvas-box canvas { width: 100%; height: 100%; display: block; border-radius: 6px; cursor: grab; }
 .v3d-canvas-box canvas:active { cursor: grabbing; }
@@ -258,8 +263,11 @@ select, input[type=text], input[type=search] {
 #result-video { width: 100%; height: 100%; object-fit: contain; display: block; border-radius: 6px; }
 #video-caption { font-size: 0.923rem; min-height: 16px; }
 #video-caption a { color: var(--accent); }
-.renders { display: flex; flex-direction: column; gap: 4px; }
-#render-list { list-style: none; margin: 0; padding: 0; font-size: 0.923rem; }
+#right > .renders {
+  flex: 1 1 0; min-height: 110px; display: flex; flex-direction: column; gap: 4px;
+  border-top: 1px solid var(--border); padding-top: 8px;
+}
+#render-list { list-style: none; margin: 0; padding: 0; font-size: 0.923rem; flex: 1; min-height: 0; overflow-y: auto; }
 #render-list li { display: flex; gap: 8px; align-items: center; padding: 3px 4px; border-radius: 4px; cursor: pointer; }
 #render-list li:hover { background: #f1f4f9; }
 #render-list li.current { background: var(--accent-soft); }
