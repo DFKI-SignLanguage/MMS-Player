@@ -59,66 +59,49 @@
 </header>
 
 <main id="layout">
-  <section id="left">
-    <div id="editor-area">
-      <aside id="sign-browser">
-        <div class="panel-title">Signs <span id="sb-count" class="muted"></span></div>
-        <input id="sb-filter" type="search" placeholder="Filter signs…" spellcheck="false" autocomplete="off">
-        <select id="sb-category" title="Show only the signs of a category">
-          <option value="">All categories</option>
-        </select>
-        <div id="sb-target" class="sb-target">Select a gloss cell to insert signs.</div>
-        <ul id="sb-list" tabindex="-1"></ul>
-        <div id="sb-preview">
-          <div id="sb-preview-title" class="panel-title">Preview</div>
-          {{ viewer3d("sign", "sb-video-box", "Click a sign to preview it.<br>Double click to insert it.") }}
-        </div>
-      </aside>
-
-      <div id="table-column">
-        <div class="toolbar">
-          <div class="tool-group">
-            <button id="btn-add-row" title="Insert a row after the selected one (Ctrl+Enter)">+ Row</button>
-            <button id="btn-dup-row" title="Duplicate the selected row">Duplicate</button>
-            <button id="btn-del-row" title="Remove the selected row">Remove</button>
-            <button id="btn-up-row" title="Move the selected row up (Alt+↑)">↑</button>
-            <button id="btn-down-row" title="Move the selected row down (Alt+↓)">↓</button>
-          </div>
-          <div class="tool-group">
-            <label title="Use the duration/transition columns (relative timing) instead of the absolute framestart/frameend">
-              <input type="checkbox" id="chk-relative"> Relative timing
-            </label>
-          </div>
-          <div class="tool-group" id="inflection-toggles">
-            <span class="tool-label">Inflections:</span>
-          </div>
-          <div class="tool-group">
-            <button id="btn-columns-menu" title="Column display and cleanup">Columns ▾</button>
-          </div>
-        </div>
-        <div id="table-wrap">
-          <table id="mms-table">
-            <thead></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div id="validation" hidden></div>
-      </div>
-
+  <aside id="sign-browser">
+    <div class="panel-title">Signs <span id="sb-count" class="muted"></span></div>
+    <input id="sb-filter" type="search" placeholder="Filter signs…" spellcheck="false" autocomplete="off">
+    <select id="sb-category" title="Show only the signs of a category">
+      <option value="">All categories</option>
+    </select>
+    <div id="sb-target" class="sb-target">Select a gloss cell to insert signs.</div>
+    <ul id="sb-list" tabindex="-1"></ul>
+    <div id="sb-preview">
+      <div id="sb-preview-title" class="panel-title">Preview</div>
+      {{ viewer3d("sign", "sb-video-box", "Click a sign to preview it.<br>Double click to insert it.") }}
     </div>
+  </aside>
 
-    <div id="timeline-panel">
-      <div class="timeline-head">
-        <span class="panel-title">Timeline</span>
-        <span id="tl-total" class="muted"></span>
-        <span id="tl-note" class="muted"></span>
-        <label class="zoom">Zoom <input type="range" id="tl-zoom" min="20" max="400" value="120"></label>
+  <div id="table-column">
+    <div class="toolbar">
+      <div class="tool-group">
+        <button id="btn-add-row" title="Insert a row after the selected one (Ctrl+Enter)">+ Row</button>
+        <button id="btn-dup-row" title="Duplicate the selected row">Duplicate</button>
+        <button id="btn-del-row" title="Remove the selected row">Remove</button>
+        <button id="btn-up-row" title="Move the selected row up (Alt+↑)">↑</button>
+        <button id="btn-down-row" title="Move the selected row down (Alt+↓)">↓</button>
       </div>
-      <div id="timeline-scroll">
-        <div id="timeline"></div>
+      <div class="tool-group">
+        <label title="Use the duration/transition columns (relative timing) instead of the absolute framestart/frameend">
+          <input type="checkbox" id="chk-relative"> Relative timing
+        </label>
+      </div>
+      <div class="tool-group" id="inflection-toggles">
+        <span class="tool-label">Inflections:</span>
+      </div>
+      <div class="tool-group">
+        <button id="btn-columns-menu" title="Column display and cleanup">Columns ▾</button>
       </div>
     </div>
-  </section>
+    <div id="table-wrap">
+      <table id="mms-table">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="validation" hidden></div>
+  </div>
 
   <div id="splitter" title="Drag to resize"></div>
 
@@ -168,6 +151,18 @@
       <ul id="render-list"></ul>
     </div>
   </section>
+
+  <div id="timeline-panel">
+    <div class="timeline-head">
+      <span class="panel-title">Timeline</span>
+      <span id="tl-total" class="muted"></span>
+      <span id="tl-note" class="muted"></span>
+      <label class="zoom">Zoom <input type="range" id="tl-zoom" min="20" max="400" value="120"></label>
+    </div>
+    <div id="timeline-scroll">
+      <div id="timeline"></div>
+    </div>
+  </div>
 </main>
 
 <div id="context-menu" hidden></div>

@@ -54,7 +54,7 @@ The columns of the MMS are divided into sections:
   * On loading, locations (cm) and rotations (degrees) are rounded to one decimal. Values typed by the user are kept as typed. Scale values are not altered.
   * The browser draft stores the values already in degrees, so restoring it after a page reload doesn't convert them twice.
 
-Below the MMS table, there is a timeline showing a preview of the timing information.
+Below the MMS table, there is a timeline showing a preview of the timing information. It spans the width of both the MMS table and the right preview panel.
 The timeline flows horizontally to the right, and the time range of the selected MMS row is highlighted on the timeline.
 
 

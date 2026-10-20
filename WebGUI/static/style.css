@@ -60,11 +60,17 @@ select, input[type=text], input[type=search] {
 .topbar .status.error { color: #fca5a5; opacity: 1; }
 
 /* ---------- Layout ---------- */
+/* The sign browser takes the full height on the left; the timeline spans the table and the right panel. */
 #layout {
   height: calc(100% - 44px);
-  display: grid; grid-template-columns: minmax(400px, 1fr) 6px var(--right-w);
+  display: grid; grid-template-columns: 250px minmax(150px, 1fr) 6px var(--right-w);
+  grid-template-rows: minmax(0, 1fr) 150px;
 }
-#left { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+#sign-browser { grid-column: 1; grid-row: 1 / 3; }
+#table-column { grid-column: 2; grid-row: 1; }
+#splitter { grid-column: 3; grid-row: 1; }
+#right { grid-column: 4; grid-row: 1; }
+#timeline-panel { grid-column: 2 / 5; grid-row: 2; }
 #splitter { cursor: col-resize; background: var(--border); }
 #splitter:hover, #splitter.dragging { background: var(--accent); }
 #right { display: flex; flex-direction: column; min-height: 0; background: var(--panel); padding: 10px; gap: 8px; overflow: auto; }
@@ -78,8 +84,7 @@ select, input[type=text], input[type=search] {
 .tool-label { color: var(--muted); }
 #inflection-toggles label { padding: 1px 6px; border-radius: 10px; background: var(--sec-inflections); }
 
-#editor-area { flex: 1; display: flex; min-height: 0; }
-#table-column { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); }
+#table-column { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); }
 /* Sized to its content (scrolling when too tall), so the validation box sits right below the last row. */
 #table-wrap { flex: 0 1 auto; overflow: auto; min-width: 0; min-height: 0; }
 
@@ -136,7 +141,7 @@ select, input[type=text], input[type=search] {
 
 /* ---------- Sign browser ---------- */
 #sign-browser {
-  width: 250px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px;
+  display: flex; flex-direction: column; gap: 6px; padding: 8px;
   background: #fbfbfc; border-right: 1px solid var(--border); min-height: 0;
 }
 #sb-filter, #sb-category { width: 100%; }
@@ -176,7 +181,7 @@ select, input[type=text], input[type=search] {
 #validation .item.warn::before { content: "⚠ "; color: var(--warn); }
 
 /* ---------- Timeline ---------- */
-#timeline-panel { height: 150px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--panel); border-top: 1px solid var(--border); }
+#timeline-panel { display: flex; flex-direction: column; background: var(--panel); border-top: 1px solid var(--border); }
 .timeline-head { display: flex; align-items: center; gap: 12px; padding: 4px 10px; }
 .timeline-head .zoom { margin-left: auto; display: flex; align-items: center; gap: 4px; color: var(--muted); }
 #timeline-scroll { flex: 1; overflow-x: auto; overflow-y: hidden; position: relative; }
