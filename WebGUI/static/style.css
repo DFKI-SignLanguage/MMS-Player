@@ -201,8 +201,8 @@ select, input[type=text], input[type=search] {
 .tl-playhead { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid #dc2626; pointer-events: none; z-index: 5; }
 
 /* ---------- Right panel ---------- */
-.gen-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.gen-controls label { display: inline-flex; align-items: center; gap: 4px; }
+.gen-controls { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
+.gen-controls label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 #progress { display: flex; flex-direction: column; gap: 4px; }
 .progress-bar { height: 10px; background: #e5e7eb; border-radius: 5px; overflow: hidden; }
 .progress-fill { height: 100%; width: 0; background: var(--accent); transition: width .3s; }

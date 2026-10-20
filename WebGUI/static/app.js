@@ -115,7 +115,7 @@ const state = {
 const PREFS_KEY = "mmsweb.prefs";
 const DRAFT_KEY = "mmsweb.draft";
 const prefs = Object.assign({
-  expanded: [], hiddenSubs: [], size: String(BOOT.defaults.render_size_pct), panel: false, rightW: 440, zoom: 120,
+  expanded: [], hiddenSubs: [], size: String(BOOT.defaults.render_size_pct), panel: false, rightW: 540, zoom: 120,
   view: "3d",
 }, readStorage(PREFS_KEY));
 
@@ -1531,6 +1531,7 @@ function setupToolbar() {
   });
   const size = $("#opt-size");
   size.value = prefs.size;
+  if (size.selectedIndex < 0) size.value = "50";   // stored size no longer offered
   size.addEventListener("change", () => { prefs.size = size.value; savePrefs(); });
   const panel = $("#opt-panel");
   panel.checked = !!prefs.panel;
