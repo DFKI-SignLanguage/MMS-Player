@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - WebGUI: real-time 3D preview of the animation with Three.js (*Preview 3D* button and *3D preview* tab). Rendering the video is needed only for the final result. Videos rendered from the WebGUI can also be viewed in 3D.
 - WebGUI: the single-sign dictionary preview is also in real-time 3D, with the same controls of the main preview. Videos are rendered only for full sentences. The `--preview-size-pct` server option was removed.
 - Fix: the facial animation was not applied to the right eye (`Eye_R`) mesh.
+- More human-friendly management of MMS inflection values. Now rotations are expressed in degrees and all numbers are rounded to 1 decimal.
 
 ## [0.5.1] - 2026-10-14
 
